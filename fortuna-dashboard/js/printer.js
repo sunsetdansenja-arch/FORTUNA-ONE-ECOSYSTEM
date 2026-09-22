@@ -1,4 +1,6 @@
 // Web Bluetooth / ESC-POS: reuse authorized device first, ask pairing only if needed.
+let printerCharacteristic=null;
+let printerConnecting=false;
 const PRINTER_OPTIONAL_SERVICES=[
   '000018f0-0000-1000-8000-00805f9b34fb',
   '0000ff00-0000-1000-8000-00805f9b34fb',
