@@ -1,138 +1,46 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Finance — Fortuna Laundry</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="css/finance.css">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Fortuna — Finance</title>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--text:#172033;--muted:#6b7280;--line:#e5e7eb;--primary:#111827;--green:#15803d;--red:#dc2626;--blue:#2563eb;--orange:#d97706;--shadow:0 8px 30px rgba(15,23,42,.07);--radius:16px}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,select{font:inherit}button{cursor:pointer}.page{max-width:1450px;margin:auto;padding:24px}.header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}.header h1{margin:0;font-size:28px}.header p{margin:5px 0 0;color:var(--muted);font-size:14px}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid var(--line);background:#fff;color:var(--text);padding:10px 14px;border-radius:10px;font-weight:700}.btn:hover{background:#f8fafc}.btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}.btn.small{padding:7px 10px;font-size:12px}.filters,.card,.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}.filters{padding:14px;display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:18px}.field{display:flex;flex-direction:column;gap:6px;min-width:160px}.field label{font-size:12px;font-weight:700;color:var(--muted)}.field input,.field select{height:40px;border:1px solid var(--line);border-radius:9px;padding:0 10px;background:#fff;outline:none}.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px}.card{padding:18px}.card .label{font-size:12px;color:var(--muted);font-weight:700}.card .value{font-size:24px;font-weight:800;margin-top:7px}.card .sub{font-size:12px;color:var(--muted);margin-top:5px}.card.green .value{color:var(--green)}.card.red .value{color:var(--red)}.card.blue .value{color:var(--blue)}.card.orange .value{color:var(--orange)}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}.panel{overflow:hidden}.panel-head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}.panel-head h2{font-size:16px;margin:0}.panel-body{padding:18px}.methods{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.method{border:1px solid var(--line);border-radius:12px;padding:14px}.method .name{font-size:12px;color:var(--muted);font-weight:700}.method .amount{font-size:18px;font-weight:800;margin-top:5px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:760px}th,td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left;font-size:13px;white-space:nowrap}th{background:#fafafa;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px}td.amount{text-align:right;font-weight:700}.badge{display:inline-flex;align-items:center;border-radius:999px;padding:5px 8px;font-size:11px;font-weight:800}.badge.paid{background:#dcfce7;color:#166534}.badge.unpaid{background:#fee2e2;color:#991b1b}.badge.cash{background:#f3f4f6;color:#374151}.badge.qris{background:#dbeafe;color:#1d4ed8}.badge.transfer{background:#fef3c7;color:#92400e}.empty{padding:28px;text-align:center;color:var(--muted);font-size:14px}.footer-note{color:var(--muted);font-size:12px;margin-top:16px}.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:50;padding:20px;align-items:center;justify-content:center}.modal-backdrop.show{display:flex}.modal{background:#fff;width:min(520px,100%);border-radius:18px;box-shadow:0 25px 70px rgba(0,0,0,.2);overflow:hidden}.modal-head{padding:18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.modal-head h3{margin:0;font-size:17px}.modal-body{padding:18px}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.form-grid .full{grid-column:1/-1}.toast{position:fixed;right:20px;bottom:20px;background:#111827;color:#fff;padding:12px 15px;border-radius:10px;box-shadow:var(--shadow);display:none;z-index:100;font-size:13px}.toast.show{display:block}.error{background:#fef2f2;color:#991b1b;border:1px solid #fecaca;padding:12px;border-radius:10px;margin-bottom:14px;display:none;font-size:13px}@media(max-width:1100px){.cards{grid-template-columns:repeat(3,1fr)}}@media(max-width:760px){.page{padding:14px}.header{align-items:flex-start;flex-direction:column}.header h1{font-size:24px}.filters{align-items:stretch}.field{flex:1;min-width:140px}.cards{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.methods{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.form-grid .full{grid-column:auto}}@media(max-width:450px){.cards{grid-template-columns:1fr}.actions{width:100%}.actions .btn{flex:1}}
+</style>
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <div class="brand-wrap">
-        <div class="brand-mark">F</div>
-        <div>
-          <div class="eyebrow">FORTUNA LAUNDRY</div>
-          <h1>Keuangan</h1>
-        </div>
-      </div>
-      <div class="top-actions">
-        <a class="ghost-btn" href="index.html"><i class="fa-solid fa-arrow-left"></i><span>Dashboard</span></a>
-        <button class="ghost-btn" id="refreshBtn"><i class="fa-solid fa-rotate-right" id="refreshIcon"></i><span>Refresh</span></button>
-      </div>
-    </header>
-
-    <main>
-      <section class="hero-row">
-        <div>
-          <p class="eyebrow">FINANCIAL OVERVIEW</p>
-          <h2>Arus uang Fortuna</h2>
-          <p class="muted">Pantau penjualan, pembayaran yang sudah diterima, piutang, dan pengeluaran dalam satu halaman.</p>
-        </div>
-        <div class="period-box">
-          <label for="startDate">Periode</label>
-          <div class="date-fields">
-            <input type="date" id="startDate">
-            <span>—</span>
-            <input type="date" id="endDate">
-          </div>
-        </div>
-      </section>
-
-      <section class="summary-grid">
-        <article class="summary-card revenue">
-          <div class="card-icon"><i class="fa-solid fa-receipt"></i></div>
-          <div><span>Total Penjualan</span><strong id="totalSales">Rp0</strong><small>nilai seluruh order pada periode</small></div>
-        </article>
-        <article class="summary-card paid">
-          <div class="card-icon"><i class="fa-solid fa-circle-check"></i></div>
-          <div><span>Sudah Dibayar</span><strong id="totalPaid">Rp0</strong><small>uang yang tercatat sudah diterima</small></div>
-        </article>
-        <article class="summary-card receivable">
-          <div class="card-icon"><i class="fa-solid fa-clock"></i></div>
-          <div><span>Belum Lunas</span><strong id="totalUnpaid">Rp0</strong><small>piutang customer</small></div>
-        </article>
-        <article class="summary-card expense">
-          <div class="card-icon"><i class="fa-solid fa-arrow-trend-down"></i></div>
-          <div><span>Pengeluaran</span><strong id="totalExpense">Rp0</strong><small>expense pada periode</small></div>
-        </article>
-        <article class="summary-card balance">
-          <div class="card-icon"><i class="fa-solid fa-wallet"></i></div>
-          <div><span>Saldo Bersih</span><strong id="netBalance">Rp0</strong><small>sudah dibayar − pengeluaran</small></div>
-        </article>
-      </section>
-
-      <section class="content-grid two-col">
-        <article class="panel">
-          <div class="panel-head">
-            <div><p class="eyebrow">PEMASUKAN</p><h3>Metode pembayaran</h3></div>
-          </div>
-          <div class="method-list">
-            <div class="method-row"><div><span class="method-dot cash"></span>CASH</div><strong id="cashTotal">Rp0</strong></div>
-            <div class="method-row"><div><span class="method-dot qris"></span>QRIS</div><strong id="qrisTotal">Rp0</strong></div>
-            <div class="method-row"><div><span class="method-dot transfer"></span>TRANSFER</div><strong id="transferTotal">Rp0</strong></div>
-          </div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-head">
-            <div><p class="eyebrow">PIUTANG</p><h3>Order belum lunas</h3></div>
-            <span class="count-pill" id="unpaidCount">0 order</span>
-          </div>
-          <div class="table-wrap compact"><table><thead><tr><th>Order</th><th>Customer</th><th>Tagihan</th><th></th></tr></thead><tbody id="unpaidTable"><tr><td colspan="4" class="empty">Tidak ada order belum lunas.</td></tr></tbody></table></div>
-        </article>
-      </section>
-
-      <section class="content-grid two-col">
-        <article class="panel">
-          <div class="panel-head">
-            <div><p class="eyebrow">TRANSAKSI</p><h3>Penjualan</h3></div>
-            <span class="count-pill" id="salesCount">0 order</span>
-          </div>
-          <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Order</th><th>Customer</th><th>Metode</th><th>Status</th><th class="right">Tagihan</th></tr></thead><tbody id="salesTable"><tr><td colspan="6" class="empty">Memuat data...</td></tr></tbody></table></div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-head">
-            <div><p class="eyebrow">PENGELUARAN</p><h3>Expense</h3></div>
-            <button class="primary-btn" id="addExpenseBtn"><i class="fa-solid fa-plus"></i> Tambah Pengeluaran</button>
-          </div>
-          <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kategori</th><th>Keterangan</th><th>Metode</th><th class="right">Nominal</th></tr></thead><tbody id="expenseTable"><tr><td colspan="5" class="empty">Memuat data...</td></tr></tbody></table></div>
-        </article>
-      </section>
-    </main>
-  </div>
-
-  <div class="modal hidden" id="expenseModal">
-    <div class="modal-card">
-      <div class="modal-head"><div><p class="eyebrow">CATAT EXPENSE</p><h3>Tambah Pengeluaran</h3></div><button class="icon-btn" data-close="expenseModal"><i class="fa-solid fa-xmark"></i></button></div>
-      <form id="expenseForm">
-        <div class="form-grid">
-          <label>Tanggal<input type="date" id="expenseDate" required></label>
-          <label>Kategori<select id="expenseCategory"><option>OPERASIONAL</option><option>BAHAN</option><option>LISTRIK</option><option>AIR</option><option>TRANSPORT</option><option>GAJI</option><option>LAINNYA</option></select></label>
-          <label class="full">Nominal<input type="number" id="expenseNominal" min="0" step="1" placeholder="Contoh: 50000" required></label>
-          <label class="full">Metode<select id="expenseMethod"><option>CASH</option><option>QRIS</option><option>TRANSFER</option></select></label>
-          <label class="full">Keterangan<textarea id="expenseNote" rows="3" placeholder="Contoh: beli plastik laundry"></textarea></label>
-        </div>
-        <div class="modal-actions"><button type="button" class="ghost-btn" data-close="expenseModal">Batal</button><button class="primary-btn" type="submit" id="expenseSaveBtn"><i class="fa-solid fa-floppy-disk"></i> Simpan</button></div>
-      </form>
-    </div>
-  </div>
-
-  <div class="modal hidden" id="paymentModal">
-    <div class="modal-card small">
-      <div class="modal-head"><div><p class="eyebrow">PELUNASAN</p><h3>Catat Pembayaran</h3></div><button class="icon-btn" data-close="paymentModal"><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="payment-summary"><span id="payCustomer">Customer</span><strong id="payAmount">Rp0</strong><small id="payOrder">Order #</small></div>
-      <label>Metode pembayaran<select id="paymentMethod"><option>CASH</option><option>QRIS</option><option>TRANSFER</option></select></label>
-      <div class="modal-actions"><button type="button" class="ghost-btn" data-close="paymentModal">Batal</button><button class="primary-btn" id="confirmPaymentBtn"><i class="fa-solid fa-check"></i> Tandai Lunas</button></div>
-    </div>
-  </div>
-
-  <div class="toast" id="toast"></div>
-
-  <script src="js/config.js"></script>
-  <script src="js/api.js"></script>
-  <script src="js/finance.js"></script>
-</body>
-</html>
+<div class="page">
+<header class="header"><div><h1>Finance</h1><p>Ringkasan pemasukan, piutang, dan pengeluaran Fortuna.</p></div><div class="actions"><button class="btn" id="btnRefresh">↻ Refresh</button><button class="btn primary" id="btnExpense">+ Tambah Pengeluaran</button></div></header>
+<div class="error" id="errorBox"></div>
+<section class="filters"><div class="field"><label>Dari tanggal</label><input type="date" id="dateFrom"></div><div class="field"><label>Sampai tanggal</label><input type="date" id="dateTo"></div><div class="field"><label>Status pembayaran</label><select id="paymentFilter"><option value="ALL">Semua</option><option value="LUNAS">Lunas</option><option value="BELUM LUNAS">Belum Lunas</option></select></div><button class="btn primary" id="btnApply">Terapkan Filter</button><button class="btn" id="btnReset">Reset</button></section>
+<section class="cards"><div class="card"><div class="label">TOTAL PENJUALAN</div><div class="value" id="totalSales">Rp0</div><div class="sub">Total tagihan order</div></div><div class="card green"><div class="label">SUDAH DIBAYAR</div><div class="value" id="totalPaid">Rp0</div><div class="sub">Kas yang sudah diterima</div></div><div class="card red"><div class="label">BELUM LUNAS</div><div class="value" id="totalUnpaid">Rp0</div><div class="sub">Piutang pelanggan</div></div><div class="card orange"><div class="label">PENGELUARAN</div><div class="value" id="totalExpense">Rp0</div><div class="sub">Expense pada periode</div></div><div class="card blue"><div class="label">SALDO BERSIH</div><div class="value" id="netBalance">Rp0</div><div class="sub">Sudah dibayar − pengeluaran</div></div></section>
+<div class="grid2"><section class="panel"><div class="panel-head"><h2>Metode Pembayaran</h2></div><div class="panel-body"><div class="methods"><div class="method"><div class="name">CASH</div><div class="amount" id="cashTotal">Rp0</div></div><div class="method"><div class="name">QRIS</div><div class="amount" id="qrisTotal">Rp0</div></div><div class="method"><div class="name">TRANSFER</div><div class="amount" id="transferTotal">Rp0</div></div></div></div></section><section class="panel"><div class="panel-head"><h2>Belum Lunas</h2><span id="unpaidCount" class="badge unpaid">0 order</span></div><div class="table-wrap"><table><thead><tr><th>Order</th><th>Pelanggan</th><th>Tagihan</th><th>Aksi</th></tr></thead><tbody id="unpaidBody"></tbody></table></div></section></div>
+<section class="panel" style="margin-bottom:18px"><div class="panel-head"><h2>Transaksi Penjualan</h2><span id="salesCount" class="badge cash">0 transaksi</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Order</th><th>Pelanggan</th><th>Paket</th><th>Metode</th><th>Status</th><th>Tagihan</th></tr></thead><tbody id="salesBody"></tbody></table></div></section>
+<section class="panel"><div class="panel-head"><h2>Pengeluaran</h2><span id="expenseCount" class="badge cash">0 transaksi</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kategori</th><th>Keterangan</th><th>Metode</th><th>Nominal</th></tr></thead><tbody id="expenseBody"></tbody></table></div></section>
+<div class="footer-note">Finance menggunakan data order, pembayaran, dan expense dari webhook Fortuna yang sama dengan dashboard.</div></div>
+<div class="modal-backdrop" id="expenseModal"><div class="modal"><div class="modal-head"><h3>Tambah Pengeluaran</h3><button class="btn small" id="btnCloseModal">✕</button></div><div class="modal-body"><form id="expenseForm"><div class="form-grid"><div class="field"><label>Tanggal</label><input type="date" id="expenseDate" required></div><div class="field"><label>Kategori</label><select id="expenseCategory"><option>OPERASIONAL</option><option>LISTRIK</option><option>AIR</option><option>BAHAN</option><option>GAJI</option><option>TRANSPORT</option><option>LAINNYA</option></select></div><div class="field full"><label>Keterangan</label><input type="text" id="expenseNote" placeholder="Contoh: beli deterjen"></div><div class="field"><label>Nominal</label><input type="number" id="expenseAmount" min="1" step="1" placeholder="50000" required></div><div class="field"><label>Metode</label><select id="expenseMethod"><option>CASH</option><option>QRIS</option><option>TRANSFER</option></select></div></div><div class="modal-actions"><button type="button" class="btn" id="btnCancelExpense">Batal</button><button type="submit" class="btn primary" id="btnSaveExpense">Simpan Pengeluaran</button></div></form></div></div></div>
+<div class="toast" id="toast"></div>
+<script>
+const WEBHOOK_URL="https://n8n-mzbmiib3etk4.kangkung.sumopod.my.id/webhook/fortuna-v5";
+const state={orders:[],expenses:[],filteredOrders:[],filteredExpenses:[]};
+const $=id=>document.getElementById(id);
+function rupiah(v){return new Intl.NumberFormat("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}).format(Number(v)||0)}
+function num(v){if(typeof v==="number")return Number.isFinite(v)?v:0;const n=Number(String(v??"").replace(/[^0-9.-]/g,""));return Number.isFinite(n)?n:0}
+function dateOnly(v){if(!v)return"";const m=String(v).match(/^(\d{4}-\d{2}-\d{2})/);if(m)return m[1];const d=new Date(v);return Number.isNaN(d.getTime())?"":d.toISOString().slice(0,10)}
+function formatDate(v){const d=dateOnly(v);if(!d)return"-";const [y,m,day]=d.split("-");return`${day}/${m}/${y}`}
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+function toast(m){const e=$("toast");e.textContent=m;e.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove("show"),3000)}
+function error(m){const e=$("errorBox");e.textContent=m;e.style.display="block"}function clearError(){$("errorBox").style.display="none"}
+async function api(action,data={}){const r=await fetch(WEBHOOK_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,data})});const raw=await r.text();let j;try{j=JSON.parse(raw)}catch(e){throw Error("Response backend bukan JSON: "+raw.slice(0,200))}if(!r.ok)throw Error(j.message||j.error||`HTTP ${r.status}`);if(j.status&&j.status!=="success")throw Error(j.message||"Backend gagal");return j}
+async function loadData(){clearError();$("btnRefresh").disabled=true;$("btnRefresh").textContent="Memuat...";try{const [a,b]=await Promise.all([api("read"),api("expense_read")]);state.orders=Array.isArray(a?.data?.orders)?a.data.orders:[];state.expenses=Array.isArray(b?.data?.expenses)?b.data.expenses:[];applyFilters();toast("Data finance berhasil diperbarui")}catch(e){console.error(e);error("Gagal mengambil data backend: "+e.message)}finally{$("btnRefresh").disabled=false;$("btnRefresh").textContent="↻ Refresh"}}
+function applyFilters(){const f=$("dateFrom").value,t=$("dateTo").value,p=$("paymentFilter").value;state.filteredOrders=state.orders.filter(o=>{const d=dateOnly(o.START);if(f&&(!d||d<f))return false;if(t&&(!d||d>t))return false;if(p!=="ALL"&&String(o.STATUS_PEMBAYARAN||"").toUpperCase()!==p)return false;return true});state.filteredExpenses=state.expenses.filter(e=>{const d=dateOnly(e.TANGGAL);if(f&&(!d||d<f))return false;if(t&&(!d||d>t))return false;return true});render()}
+function render(){const os=state.filteredOrders,es=state.filteredExpenses,paid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS"),unpaid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()!=="LUNAS");const sales=os.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0),cash=paid.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0),due=unpaid.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0),exp=es.reduce((s,e)=>s+num(e.NOMINAL),0);$("totalSales").textContent=rupiah(sales);$("totalPaid").textContent=rupiah(cash);$("totalUnpaid").textContent=rupiah(due);$("totalExpense").textContent=rupiah(exp);$("netBalance").textContent=rupiah(cash-exp);const methods={CASH:0,QRIS:0,TRANSFER:0};paid.forEach(o=>{const m=String(o.METODE_TRANSAKSI||"").toUpperCase();if(methods[m]!==undefined)methods[m]+=num(o.TOTAL_TAGIHAN)});$("cashTotal").textContent=rupiah(methods.CASH);$("qrisTotal").textContent=rupiah(methods.QRIS);$("transferTotal").textContent=rupiah(methods.TRANSFER);$("salesCount").textContent=`${os.length} transaksi`;$('expenseCount').textContent=`${es.length} transaksi`;$('unpaidCount').textContent=`${unpaid.length} order`;
+$("salesBody").innerHTML=os.length?os.map(o=>{const p=String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS",m=String(o.METODE_TRANSAKSI||"BELUM LUNAS").toUpperCase();return`<tr><td>${formatDate(o.START)}</td><td><strong>#${esc(o.ORDER_ID)}</strong></td><td>${esc(o.NAMA)}</td><td>${esc(o.PAKET||"-")}</td><td><span class="badge ${m.toLowerCase().replace(/\s/g,"-")}">${esc(m)}</span></td><td><span class="badge ${p?"paid":"unpaid"}">${p?"LUNAS":"BELUM LUNAS"}</span></td><td class="amount">${rupiah(o.TOTAL_TAGIHAN)}</td></tr>`}).join(""):"<tr><td colspan='7' class='empty'>Tidak ada transaksi pada filter ini.</td></tr>";
+$("unpaidBody").innerHTML=unpaid.length?unpaid.map(o=>`<tr><td><strong>#${esc(o.ORDER_ID)}</strong></td><td>${esc(o.NAMA)}</td><td class="amount">${rupiah(o.TOTAL_TAGIHAN)}</td><td><button class="btn small primary" onclick="openPayment('${esc(o.ORDER_ID)}')">Lunasi</button></td></tr>`).join(""):"<tr><td colspan='4' class='empty'>Tidak ada piutang pada filter ini.</td></tr>";
+$("expenseBody").innerHTML=es.length?es.map(e=>{const m=String(e.METODE_TRANSAKSI||"CASH").toUpperCase();return`<tr><td>${formatDate(e.TANGGAL)}</td><td>${esc(e.KATEGORI||"LAINNYA")}</td><td>${esc(e.KETERANGAN||"-")}</td><td><span class="badge ${m.toLowerCase()}">${esc(m)}</span></td><td class="amount">${rupiah(e.NOMINAL)}</td></tr>`}).join(""):"<tr><td colspan='5' class='empty'>Belum ada pengeluaran pada filter ini.</td></tr>"}
+async function openPayment(id){const method=prompt(`Pelunasan order #${id}\n\nKetik metode pembayaran:\nCASH / QRIS / TRANSFER`,`CASH`);if(method===null)return;const m=method.trim().toUpperCase();if(!["CASH","QRIS","TRANSFER"].includes(m)){toast("Metode harus CASH, QRIS, atau TRANSFER");return}try{await api("payment_update",{ORDER_ID:id,METODE_TRANSAKSI:m});toast(`Order #${id} berhasil dilunasi`);await loadData()}catch(e){console.error(e);error("Gagal melunasi order: "+e.message)}}
+function openExpenseModal(){$("expenseDate").value=new Date().toISOString().slice(0,10);$("expenseNote").value="";$("expenseAmount").value="";$("expenseModal").classList.add("show")}function closeExpenseModal(){$("expenseModal").classList.remove("show")}
+async function saveExpense(e){e.preventDefault();const b=$("btnSaveExpense"),data={TANGGAL:$("expenseDate").value,KATEGORI:$("expenseCategory").value,KETERANGAN:$("expenseNote").value.trim(),NOMINAL:$("expenseAmount").value,METODE_TRANSAKSI:$("expenseMethod").value};if(!data.TANGGAL||!data.NOMINAL){toast("Tanggal dan nominal wajib diisi");return}b.disabled=true;b.textContent="Menyimpan...";try{await api("expense_create",data);closeExpenseModal();toast("Pengeluaran berhasil dicatat");await loadData()}catch(err){console.error(err);error("Gagal menyimpan pengeluaran: "+err.message)}finally{b.disabled=false;b.textContent="Simpan Pengeluaran"}}
+function defaults(){const n=new Date(),f=new Date(n.getFullYear(),n.getMonth(),1);$("dateFrom").value=f.toISOString().slice(0,10);$("dateTo").value=n.toISOString().slice(0,10)}function reset(){$("dateFrom").value="";$("dateTo").value="";$("paymentFilter").value="ALL";applyFilters()}
+document.addEventListener("DOMContentLoaded",()=>{defaults();$("btnRefresh").addEventListener("click",loadData);$("btnApply").addEventListener("click",applyFilters);$("btnReset").addEventListener("click",reset);$("btnExpense").addEventListener("click",openExpenseModal);$("btnCloseModal").addEventListener("click",closeExpenseModal);$("btnCancelExpense").addEventListener("click",closeExpenseModal);$("expenseForm").addEventListener("submit",saveExpense);$("expenseModal").addEventListener("click",e=>{if(e.target===$("expenseModal"))closeExpenseModal()});loadData()});
+</script>
+</body></html>
