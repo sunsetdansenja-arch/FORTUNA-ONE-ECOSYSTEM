@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Fortuna Laundry — Operasional V10.5</title>
+<script src="https://cdn.tailwindcss.com"></script><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar bg-white border-r border-slate-200 p-4 flex flex-col">
+  <div class="brand px-3 py-4 flex items-center gap-3"><div class="brand-main text-[11px] font-black tracking-[.2em] text-[#0F5A47]">FORTUNA</div><div class="brand-sub"><div class="font-extrabold text-lg leading-none">Laundry</div></div></div>
+  <nav class="space-y-2 mt-3">
+    <button onclick="showTab('ops')" data-tab="ops" class="navbtn nav-active w-full text-left rounded-xl px-4 py-3 font-bold text-sm flex items-center"><i class="fa-solid fa-table-columns w-5"></i><span class="sidebar-label">Operasional Dashboard</span></button>
+    <button onclick="showTab('deadline')" data-tab="deadline" class="navbtn w-full text-left rounded-xl px-4 py-3 font-bold text-sm flex items-center"><i class="fa-solid fa-clock w-5"></i><span class="sidebar-label">Deadline Dashboard</span></button>
+    <button onclick="showTab('expense')" data-tab="expense" class="navbtn w-full text-left rounded-xl px-4 py-3 font-bold text-sm flex items-center"><i class="fa-solid fa-money-bill-wave w-5"></i><span class="sidebar-label">Expense</span></button>
+  </nav>
+  <div class="mt-auto p-3 text-[10px] text-slate-400 font-semibold sidebar-foot">Fortuna Laundry V10.5</div>
+</aside>
+<div class="min-w-0">
+<header class="sticky top-0 z-30 bg-[#f5f3ef]/95 backdrop-blur border-b border-[#e5e1da]">
+ <div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3"><div class="flex items-center gap-3"><button id="navToggle" onclick="toggleNav()" class="nav-toggle btn bg-white border border-slate-200 rounded-xl w-10 h-10" aria-label="Buka/tutup navigasi"><i id="navToggleIcon" class="fa-solid fa-bars-staggered"></i></button><div><div class="text-[10px] font-black tracking-[.18em] text-[#0F5A47] uppercase">Fortuna Laundry</div><h1 id="title" class="text-xl sm:text-2xl font-extrabold mt-1">Operasional Dashboard</h1></div></div><div class="flex gap-2"><button id="printerBtn" onclick="connectPrinter()" class="btn bg-white border border-slate-200 rounded-xl px-3 py-2.5 font-bold text-sm"><i id="printerIcon" class="fa-solid fa-print mr-1"></i><span id="printerText">Hubungkan ke printer</span></button><button id="globalRefreshBtn" onclick="refreshActiveTab()" class="btn bg-white border border-slate-200 rounded-xl px-3 py-2.5 font-bold text-sm"><i id="globalRefreshIcon" class="fa-solid fa-rotate-right mr-1"></i>Refresh</button></div></div>
+</header>
+
+<main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-5">
+<div id="globalDeadlineTray" class="card mb-4 px-4 py-3 flex items-center justify-between gap-3 border-l-4 border-l-[#0F5A47]">
+  <div class="flex items-center gap-3 min-w-0"><span class="w-9 h-9 rounded-xl bg-emerald-50 text-[#0F5A47] flex items-center justify-center shrink-0"><i class="fa-solid fa-clock"></i></span><div class="min-w-0"><div class="text-[10px] font-black tracking-[.08em] text-slate-500 uppercase">Deadline</div><div class="font-extrabold text-sm truncate">Total deadline: <span id="globalDeadlineCount">0</span></div></div></div>
+  <button onclick="showTab('deadline')" class="btn shrink-0 bg-slate-100 hover:bg-slate-200 rounded-xl px-3 py-2 text-xs font-extrabold">Lihat</button>
+</div>
+<section id="tab-ops" class="tab space-y-5">
+ <div class="ops-subnav flex flex-wrap gap-2">
+  <button id="opsNavNew" onclick="showOpsView('new')" class="active rounded-xl px-4 py-2.5 font-extrabold text-sm border border-slate-200 bg-white">ORDER BARU</button>
+  <button id="opsNavList" onclick="showOpsView('list')" class="rounded-xl px-4 py-2.5 font-extrabold text-sm border border-slate-200 bg-white">DAFTAR ORDER</button>
+ </div>
+ <section id="ops-new" class="card p-5 md:p-7">
+  <div class="flex justify-between items-center mb-6"><div><h2 class="font-extrabold text-xl">Order Baru</h2><p class="text-sm text-slate-500 mt-1">Satu transaksi dapat berisi beberapa paket.</p></div><span class="w-10 h-10 rounded-xl bg-emerald-50 text-[#0F5A47] flex items-center justify-center"><i class="fa-solid fa-plus"></i></span></div>
+  <form onsubmit="draftOrder(event)" class="space-y-4 max-w-4xl">
+   <div class="grid md:grid-cols-2 gap-4"><label class="block"><span class="label">NAMA</span><input id="f-nama" required class="input" placeholder="Nama pelanggan"></label><label class="block"><span class="label">NO WHATSAPP</span><input id="f-wa" class="input" placeholder="08xxxxxxxxxx"></label></div>
+   <div class="flex justify-between items-center"><span class="label">PAKET</span><button type="button" onclick="addPackage()" class="text-xs font-black text-[#0F5A47]">+ Tambah Paket</button></div>
+   <div id="packageRows" class="space-y-3"></div>
+   <div class="grid md:grid-cols-2 gap-4"><label class="block"><span class="label">PEMBAYARAN</span><select id="f-payment" class="input"><option>CASH</option><option>QRIS</option><option>TRANSFER</option><option selected>BELUM LUNAS</option></select></label><div class="bg-slate-50 rounded-xl px-4 py-4 flex items-center justify-between"><span class="label">TOTAL TAGIHAN</span><strong id="orderTotal">Rp 0</strong></div></div>
+   <button class="btn w-full bg-[#0F5A47] text-white rounded-xl py-3.5 font-extrabold"><i class="fa-solid fa-receipt mr-2"></i>Lanjutkan • Preview Struk</button>
+  </form>
+ </section>
+ <section id="ops-list" class="hidden space-y-4">
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+   <button onclick="toggleStatusFilter('ALL')" data-filter="ALL" class="summary-filter card p-4 text-left"><div class="text-[10px] font-black text-slate-500">TOTAL ORDER</div><div id="sum-total" class="text-2xl font-black mt-1">0</div></button>
+   <button onclick="toggleStatusFilter('DITERIMA')" data-filter="DITERIMA" class="summary-filter card p-4 text-left"><div class="text-[10px] font-black text-red-600">DITERIMA</div><div id="sum-diterima" class="text-2xl font-black mt-1">0</div></button>
+   <button onclick="toggleStatusFilter('DIPROSES')" data-filter="DIPROSES" class="summary-filter card p-4 text-left"><div class="text-[10px] font-black text-orange-500">DIPROSES</div><div id="sum-diproses" class="text-2xl font-black mt-1">0</div></button>
+   <button onclick="toggleStatusFilter('QC')" data-filter="QC" class="summary-filter card p-4 text-left"><div class="text-[10px] font-black text-blue-500">QC</div><div id="sum-qc" class="text-2xl font-black mt-1">0</div></button>
+   <button onclick="toggleStatusFilter('SIAP')" data-filter="SIAP" class="summary-filter card p-4 text-left"><div class="text-[10px] font-black text-emerald-600">SIAP</div><div id="sum-siap" class="text-2xl font-black mt-1">0</div></button>
+   <button onclick="toggleStatusFilter('SELESAI')" data-filter="SELESAI" class="summary-filter card p-4 text-left"><div class="text-[10px] font-black text-slate-500">SELESAI</div><div id="sum-selesai" class="text-2xl font-black mt-1">0</div></button>
+  </div>
+  <div class="card overflow-hidden"><div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><h2 class="font-extrabold text-lg">Daftar Order</h2><p id="orderCount" class="text-xs text-slate-500">Memuat...</p></div><div class="flex gap-2 w-full sm:w-auto"><input id="search" oninput="renderOrders()" class="input sm:max-w-xs" placeholder="Cari nomor / nama / paket..."><button onclick="toggleStatusFilter('ALL',true)" class="btn bg-slate-100 rounded-xl px-3 font-bold text-xs">Semua</button></div></div><div class="table-scroll"><table class="w-full"><thead class="sticky top-0 bg-[#faf9f7] z-10"><tr class="text-[10px] font-black text-slate-500"><th class="text-left px-4 py-3">ORDER</th><th class="text-left px-4 py-3">PELANGGAN</th><th class="text-left px-4 py-3">PAKET</th><th class="text-left px-3 py-2.5">TOTAL</th><th class="text-left px-3 py-2.5">AKSI</th></tr></thead><tbody id="orderRows"></tbody></table></div></div>
+ </section>
+</section>
+
+<section id="tab-deadline" class="tab hidden space-y-4">
+  <div class="flex items-center justify-between gap-3">
+    <div><h2 class="text-xl font-extrabold">Deadline Dashboard</h2><p class="text-sm text-slate-500 mt-1">Pantau deadline per item dan prioritaskan cucian yang paling dekat target READY.</p></div>
+    <button id="deadlineRefreshBtn" onclick="loadDeadline()" class="btn bg-white border border-slate-200 rounded-xl px-3 py-2 font-bold text-sm"><i id="deadlineRefreshIcon" class="fa-solid fa-rotate-right mr-1"></i>Refresh</button>
+  </div>
+
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <button onclick="toggleDeadlineFilter('ALL',true)" data-dl-filter="ALL" class="deadline-filter summary-filter card p-3 sm:p-4 text-left active">
+      <div class="text-[10px] font-black text-slate-500">SEMUA ITEM</div><div id="dl-total" class="text-2xl font-black mt-1">0</div><div class="text-[10px] text-slate-400 mt-1">sedang dipantau</div>
+    </button>
+    <button onclick="toggleDeadlineFilter('PRIORITY')" data-dl-filter="PRIORITY" class="deadline-filter summary-filter card p-3 sm:p-4 text-left">
+      <div class="text-[10px] font-black text-amber-600">PRIORITY</div><div id="dl-priority" class="text-2xl font-black mt-1">0</div><div class="text-[10px] text-slate-400 mt-1">≤ 70% waktu tersisa</div>
+    </button>
+    <button onclick="toggleDeadlineFilter('DEADLINE')" data-dl-filter="DEADLINE" class="deadline-filter summary-filter card p-3 sm:p-4 text-left">
+      <div class="text-[10px] font-black text-red-600">DEADLINE</div><div id="dl-deadline" class="text-2xl font-black mt-1">0</div><div class="text-[10px] text-slate-400 mt-1">≤ 50% waktu tersisa</div>
+    </button>
+    <button onclick="toggleDeadlineFilter('OVERDUE')" data-dl-filter="OVERDUE" class="deadline-filter summary-filter card p-3 sm:p-4 text-left">
+      <div class="text-[10px] font-black text-red-900">OVERDUE</div><div id="dl-overdue" class="text-2xl font-black mt-1">0</div><div class="text-[10px] text-slate-400 mt-1">melewati READY_AT</div>
+    </button>
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="p-3.5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div><h3 class="font-extrabold text-lg">Item Deadline</h3><p id="deadlineCount" class="text-xs text-slate-500 mt-0.5">Memuat...</p></div>
+      <div class="flex gap-2 w-full sm:w-auto"><input id="deadlineSearch" oninput="renderDeadline()" class="input sm:max-w-xs" placeholder="Cari order / nama / paket..."><button onclick="toggleDeadlineFilter('ALL',true)" class="btn bg-slate-100 rounded-xl px-3 font-bold text-xs">Semua</button></div>
+    </div>
+    <div id="deadlineList" class="deadline-list divide-y divide-slate-100"></div>
+  </div>
+</section>
+
+
+<section id="tab-expense" class="tab hidden space-y-4">
+  <div class="flex items-center justify-between gap-3">
+    <div><h2 class="text-xl font-extrabold">Expense</h2><p class="text-sm text-slate-500 mt-1">Catat dan pantau pengeluaran operasional Fortuna Laundry.</p></div>
+    <button id="expenseRefreshBtn" onclick="loadExpense()" class="btn bg-white border border-slate-200 rounded-xl px-3 py-2 font-bold text-sm"><i id="expenseRefreshIcon" class="fa-solid fa-rotate-right mr-1"></i>Refresh</button>
+  </div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div class="card p-4"><div class="text-[10px] font-black text-slate-500">PENGELUARAN HARI INI</div><div id="expenseTotal" class="text-xl sm:text-2xl font-black mt-1">Rp 0</div><div id="expenseTodayLabel" class="text-[10px] text-slate-400 mt-1">-</div></div>
+    <div class="card p-4"><div class="text-[10px] font-black text-[#0F5A47]">PENGELUARAN BULAN INI</div><div id="expenseMonthTotal" class="text-xl sm:text-2xl font-black mt-1">Rp 0</div><div id="expenseMonthLabel" class="text-[10px] text-slate-400 mt-1">-</div></div>
+  </div>
+  <div class="grid lg:grid-cols-[340px_1fr] gap-4 items-start">
+    <section class="card p-5 lg:sticky lg:top-24">
+      <div class="flex items-center justify-between gap-3 mb-4"><div><h3 class="font-extrabold text-lg">Input Expense</h3><p class="text-xs text-slate-500 mt-1">Simpan pengeluaran baru.</p></div><span class="w-9 h-9 rounded-xl bg-emerald-50 text-[#0F5A47] flex items-center justify-center"><i class="fa-solid fa-plus"></i></span></div>
+      <form id="expenseForm" onsubmit="createExpense(event)" class="space-y-3">
+        <label class="block"><span class="label">TANGGAL</span><input id="e-tanggal" type="date" required class="input"></label>
+        <label class="block"><span class="label">KATEGORI</span><input id="e-kategori" class="input" placeholder="Listrik, bahan, gaji, dll"></label>
+        <label class="block"><span class="label">KETERANGAN</span><input id="e-keterangan" class="input" placeholder="Keterangan pengeluaran"></label>
+        <label class="block"><span class="label">NOMINAL</span><input id="e-nominal" required inputmode="decimal" class="input num-input" placeholder="50000"></label>
+        <label class="block"><span class="label">METODE TRANSAKSI</span><select id="e-metode" class="input"><option>CASH</option><option>QRIS</option><option>TRANSFER</option></select></label>
+        <button id="expenseSaveBtn" type="submit" class="btn w-full bg-[#0F5A47] text-white rounded-xl py-3 font-extrabold"><i id="expenseSaveIcon" class="fa-solid fa-floppy-disk mr-1"></i><span id="expenseSaveText">Simpan Expense</span></button>
+      </form>
+    </section>
+    <section class="card overflow-hidden">
+      <div class="p-4 border-b border-slate-100"><div class="flex flex-col xl:flex-row xl:items-center justify-between gap-3"><div><h3 class="font-extrabold text-lg">Daftar Expense</h3><p id="expenseListCount" class="text-xs text-slate-500 mt-0.5">Memuat...</p></div><div class="flex flex-col sm:flex-row gap-2 w-full xl:w-auto"><input id="expenseSearch" oninput="renderExpense()" class="input sm:max-w-xs" placeholder="Cari kategori / keterangan..."><select id="expenseCategoryFilter" onchange="renderExpense()" class="input sm:w-44"><option value="ALL">Semua kategori</option></select><select id="expenseMethodFilter" onchange="renderExpense()" class="input sm:w-36"><option value="ALL">Semua metode</option><option>CASH</option><option>QRIS</option><option>TRANSFER</option></select></div></div></div>
+      <div id="expenseList" class="divide-y divide-slate-100"></div>
+    </section>
+  </div>
+</section>
+
+</main></div></div>
+
+<div id="drawerBackdrop" onclick="toggleMobileDrawer()" class="drawer-backdrop fixed inset-0 z-40 bg-black/40"></div><aside id="mobileDrawer" class="mobile-drawer fixed left-0 top-0 bottom-0 z-50 w-72 bg-white p-5 shadow-2xl"><div class="flex items-center justify-between mb-8"><b class="text-lg">FORTUNA</b><button onclick="toggleMobileDrawer()" class="w-10 h-10 rounded-xl bg-slate-100"><i class="fa-solid fa-xmark"></i></button></div><div class="space-y-2"><button onclick="toggleMobileDrawer();showTab('ops')" class="w-full text-left rounded-xl px-4 py-3 font-bold bg-emerald-50 text-[#0F5A47]"><i class="fa-solid fa-table-columns w-5"></i> Operasional Dashboard</button><button onclick="toggleMobileDrawer();showTab('deadline')" class="w-full text-left rounded-xl px-4 py-3 font-bold text-slate-700"><i class="fa-solid fa-clock w-5"></i> Deadline Dashboard</button><button onclick="toggleMobileDrawer();showTab('expense')" class="w-full text-left rounded-xl px-4 py-3 font-bold text-slate-700"><i class="fa-solid fa-money-bill-wave w-5"></i> Expense</button></div></aside><div id="previewModal" class="modal fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div class="modal-box bg-white rounded-2xl max-w-md w-full max-h-[92vh] overflow-auto p-4"><div class="flex justify-between items-center mb-3"><div><h3 id="previewTitle" class="font-extrabold">Preview Struk</h3><p id="previewSubtitle" class="text-[11px] text-slate-500 mt-0.5">Periksa sebelum menyimpan</p></div><button onclick="closeModal('previewModal')" class="w-9 h-9 rounded-xl bg-slate-100"><i class="fa-solid fa-xmark"></i></button></div><div id="receiptPreview" class="bg-slate-100 p-2 rounded-xl flex justify-center overflow-auto"></div><div class="grid gap-2 mt-4"><button id="previewCreatePrint" onclick="confirmCreate(true,false)" class="btn bg-[#0F5A47] text-white rounded-xl py-3 font-extrabold">Cetak Struk dan Simpan</button><button id="previewCreatePrintWa" onclick="confirmCreate(true,true)" class="btn bg-slate-900 text-white rounded-xl py-3 font-extrabold">Cetak Struk dan Kirimkan WA</button><button id="previewCreateSave" onclick="confirmCreate(false,false)" class="btn bg-slate-100 rounded-xl py-3 font-extrabold">Simpan Tanpa Cetak</button><button id="previewReprint" onclick="confirmReprint()" class="hidden btn bg-[#0F5A47] text-white rounded-xl py-3 font-extrabold">Cetak Struk</button><button onclick="closeModal('previewModal')" class="py-2 text-sm font-bold text-slate-500">Batal</button></div></div></div>
+<div id="waModal" class="modal fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div class="modal-box bg-white rounded-2xl max-w-md w-full p-5"><div class="flex justify-between items-start"><div><h3 class="font-extrabold text-lg">WhatsApp Customer</h3><p id="waOrderInfo" class="text-xs text-slate-500 mt-1"></p></div><button onclick="closeModal('waModal')" class="w-9 h-9 rounded-xl bg-slate-100"><i class="fa-solid fa-xmark"></i></button></div><div class="mt-4 rounded-xl bg-slate-50 border border-slate-100 p-3"><div class="text-[10px] font-black text-slate-500 uppercase">Link cek status cucian</div><div id="waStatusLink" class="text-xs font-bold mt-1 break-all"></div></div><div class="grid gap-2 mt-4"><button onclick="sendWAOption('ready')" class="btn bg-emerald-50 text-emerald-800 border border-emerald-100 rounded-xl py-3 font-extrabold text-left px-4"><i class="fa-solid fa-shirt mr-2"></i>Pesanan selesai & siap diambil</button><button onclick="sendWAOption('status')" class="btn bg-slate-50 border border-slate-200 rounded-xl py-3 font-extrabold text-left px-4"><i class="fa-solid fa-link mr-2"></i>Kirim link cek status cucian</button><button onclick="sendWAOption('chat')" class="btn bg-[#0F5A47] text-white rounded-xl py-3 font-extrabold text-left px-4"><i class="fa-brands fa-whatsapp mr-2"></i>Hubungkan saja ke WhatsApp</button></div><button onclick="closeModal('waModal')" class="w-full py-3 text-sm font-bold text-slate-500">Batal</button></div></div>
+<div id="editModal" class="modal fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div class="modal-box bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-auto p-5"><div class="flex justify-between"><div><h3 class="font-extrabold text-lg">Edit Item</h3><p id="edit-id" class="text-xs text-slate-500"></p></div><button onclick="closeModal('editModal')"><i class="fa-solid fa-xmark"></i></button></div><form onsubmit="saveEdit(event)" class="space-y-3 mt-5"><input type="hidden" id="edit-item"><label class="block"><span class="label">NAMA</span><input id="edit-nama" class="input"></label><label class="block"><span class="label">NO WHATSAPP</span><input id="edit-wa" class="input"></label><label class="block"><span class="label">PAKET</span><select id="edit-paket" class="input"></select></label><div class="grid grid-cols-2 gap-2"><label><span class="label">BERAT</span><input id="edit-berat" inputmode="decimal" class="input num-input"></label><label><span class="label">TAGIHAN</span><input id="edit-tagihan" inputmode="decimal" class="input num-input"></label></div><p class="text-[11px] text-slate-500">Jika paket berubah, DURATION dan READY_AT otomatis dihitung ulang dari START.</p><button class="btn w-full bg-[#0F5A47] text-white rounded-xl py-3 font-extrabold">Simpan Perubahan</button></form></div></div>
+<div id="payModal" class="modal fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div class="modal-box bg-white rounded-2xl max-w-sm w-full p-5"><h3 class="font-extrabold text-lg">Pelunasan</h3><p class="text-sm text-slate-500 mt-1">Lunas menggunakan metode apa?</p><div class="grid gap-2 mt-5"><button onclick="pay('CASH')" class="btn border rounded-xl py-3 font-extrabold">CASH</button><button onclick="pay('QRIS')" class="btn border rounded-xl py-3 font-extrabold">QRIS</button><button onclick="pay('TRANSFER')" class="btn border rounded-xl py-3 font-extrabold">TRANSFER</button><button onclick="closeModal('payModal')" class="py-2 text-sm font-bold text-slate-500">Batal</button></div></div></div>
+<div id="numpadModal" class="modal fixed inset-0 z-[60] bg-black/40 flex items-end justify-center p-3"><div class="modal-box bg-white rounded-2xl w-full max-w-sm p-4"><div class="flex justify-between mb-3"><b>Input angka</b><button onclick="closeModal('numpadModal')">Selesai</button></div><div id="numDisplay" class="text-right text-2xl font-black p-3 bg-slate-50 rounded-xl mb-3">0</div><div class="numpad" id="numpad"></div></div></div>
+<div id="toast" class="toast fixed top-5 right-5 z-[80] bg-slate-900 text-white px-4 py-3 rounded-xl text-sm font-bold"></div>
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/orders.js"></script>
+<script src="js/receipt.js"></script>
+<script src="js/deadline.js"></script>
+<script src="js/expense.js"></script>
+<script src="js/printer.js"></script>
+<script src="js/whatsapp.js"></script>
+<script src="js/numpad.js"></script>
+<script src="js/ui.js"></script>
+</body></html>
