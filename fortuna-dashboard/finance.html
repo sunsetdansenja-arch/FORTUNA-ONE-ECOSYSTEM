@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Finance — Fortuna Laundry</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="css/finance.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-wrap">
+        <div class="brand-mark">F</div>
+        <div>
+          <div class="eyebrow">FORTUNA LAUNDRY</div>
+          <h1>Keuangan</h1>
+        </div>
+      </div>
+      <div class="top-actions">
+        <a class="ghost-btn" href="index.html"><i class="fa-solid fa-arrow-left"></i><span>Dashboard</span></a>
+        <button class="ghost-btn" id="refreshBtn"><i class="fa-solid fa-rotate-right" id="refreshIcon"></i><span>Refresh</span></button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero-row">
+        <div>
+          <p class="eyebrow">FINANCIAL OVERVIEW</p>
+          <h2>Arus uang Fortuna</h2>
+          <p class="muted">Pantau penjualan, pembayaran yang sudah diterima, piutang, dan pengeluaran dalam satu halaman.</p>
+        </div>
+        <div class="period-box">
+          <label for="startDate">Periode</label>
+          <div class="date-fields">
+            <input type="date" id="startDate">
+            <span>—</span>
+            <input type="date" id="endDate">
+          </div>
+        </div>
+      </section>
+
+      <section class="summary-grid">
+        <article class="summary-card revenue">
+          <div class="card-icon"><i class="fa-solid fa-receipt"></i></div>
+          <div><span>Total Penjualan</span><strong id="totalSales">Rp0</strong><small>nilai seluruh order pada periode</small></div>
+        </article>
+        <article class="summary-card paid">
+          <div class="card-icon"><i class="fa-solid fa-circle-check"></i></div>
+          <div><span>Sudah Dibayar</span><strong id="totalPaid">Rp0</strong><small>uang yang tercatat sudah diterima</small></div>
+        </article>
+        <article class="summary-card receivable">
+          <div class="card-icon"><i class="fa-solid fa-clock"></i></div>
+          <div><span>Belum Lunas</span><strong id="totalUnpaid">Rp0</strong><small>piutang customer</small></div>
+        </article>
+        <article class="summary-card expense">
+          <div class="card-icon"><i class="fa-solid fa-arrow-trend-down"></i></div>
+          <div><span>Pengeluaran</span><strong id="totalExpense">Rp0</strong><small>expense pada periode</small></div>
+        </article>
+        <article class="summary-card balance">
+          <div class="card-icon"><i class="fa-solid fa-wallet"></i></div>
+          <div><span>Saldo Bersih</span><strong id="netBalance">Rp0</strong><small>sudah dibayar − pengeluaran</small></div>
+        </article>
+      </section>
+
+      <section class="content-grid two-col">
+        <article class="panel">
+          <div class="panel-head">
+            <div><p class="eyebrow">PEMASUKAN</p><h3>Metode pembayaran</h3></div>
+          </div>
+          <div class="method-list">
+            <div class="method-row"><div><span class="method-dot cash"></span>CASH</div><strong id="cashTotal">Rp0</strong></div>
+            <div class="method-row"><div><span class="method-dot qris"></span>QRIS</div><strong id="qrisTotal">Rp0</strong></div>
+            <div class="method-row"><div><span class="method-dot transfer"></span>TRANSFER</div><strong id="transferTotal">Rp0</strong></div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div><p class="eyebrow">PIUTANG</p><h3>Order belum lunas</h3></div>
+            <span class="count-pill" id="unpaidCount">0 order</span>
+          </div>
+          <div class="table-wrap compact"><table><thead><tr><th>Order</th><th>Customer</th><th>Tagihan</th><th></th></tr></thead><tbody id="unpaidTable"><tr><td colspan="4" class="empty">Tidak ada order belum lunas.</td></tr></tbody></table></div>
+        </article>
+      </section>
+
+      <section class="content-grid two-col">
+        <article class="panel">
+          <div class="panel-head">
+            <div><p class="eyebrow">TRANSAKSI</p><h3>Penjualan</h3></div>
+            <span class="count-pill" id="salesCount">0 order</span>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Order</th><th>Customer</th><th>Metode</th><th>Status</th><th class="right">Tagihan</th></tr></thead><tbody id="salesTable"><tr><td colspan="6" class="empty">Memuat data...</td></tr></tbody></table></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div><p class="eyebrow">PENGELUARAN</p><h3>Expense</h3></div>
+            <button class="primary-btn" id="addExpenseBtn"><i class="fa-solid fa-plus"></i> Tambah Pengeluaran</button>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kategori</th><th>Keterangan</th><th>Metode</th><th class="right">Nominal</th></tr></thead><tbody id="expenseTable"><tr><td colspan="5" class="empty">Memuat data...</td></tr></tbody></table></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal hidden" id="expenseModal">
+    <div class="modal-card">
+      <div class="modal-head"><div><p class="eyebrow">CATAT EXPENSE</p><h3>Tambah Pengeluaran</h3></div><button class="icon-btn" data-close="expenseModal"><i class="fa-solid fa-xmark"></i></button></div>
+      <form id="expenseForm">
+        <div class="form-grid">
+          <label>Tanggal<input type="date" id="expenseDate" required></label>
+          <label>Kategori<select id="expenseCategory"><option>OPERASIONAL</option><option>BAHAN</option><option>LISTRIK</option><option>AIR</option><option>TRANSPORT</option><option>GAJI</option><option>LAINNYA</option></select></label>
+          <label class="full">Nominal<input type="number" id="expenseNominal" min="0" step="1" placeholder="Contoh: 50000" required></label>
+          <label class="full">Metode<select id="expenseMethod"><option>CASH</option><option>QRIS</option><option>TRANSFER</option></select></label>
+          <label class="full">Keterangan<textarea id="expenseNote" rows="3" placeholder="Contoh: beli plastik laundry"></textarea></label>
+        </div>
+        <div class="modal-actions"><button type="button" class="ghost-btn" data-close="expenseModal">Batal</button><button class="primary-btn" type="submit" id="expenseSaveBtn"><i class="fa-solid fa-floppy-disk"></i> Simpan</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="paymentModal">
+    <div class="modal-card small">
+      <div class="modal-head"><div><p class="eyebrow">PELUNASAN</p><h3>Catat Pembayaran</h3></div><button class="icon-btn" data-close="paymentModal"><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="payment-summary"><span id="payCustomer">Customer</span><strong id="payAmount">Rp0</strong><small id="payOrder">Order #</small></div>
+      <label>Metode pembayaran<select id="paymentMethod"><option>CASH</option><option>QRIS</option><option>TRANSFER</option></select></label>
+      <div class="modal-actions"><button type="button" class="ghost-btn" data-close="paymentModal">Batal</button><button class="primary-btn" id="confirmPaymentBtn"><i class="fa-solid fa-check"></i> Tandai Lunas</button></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/finance.js"></script>
+</body>
+</html>
