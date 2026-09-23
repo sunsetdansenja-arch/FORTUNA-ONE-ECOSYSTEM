@@ -8,3 +8,549 @@ body{background:#f5f3ef;color:#202522;font-family:Inter,system-ui,-apple-system,
 
 
 .deadline-natural{font-size:11px;font-weight:900;color:#0f5a47;grid-column:1 / -1;margin-top:1px}.label{font-size:10px;font-weight:900;color:#64748b}.input{width:100%;margin-top:5px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:12px;padding:11px 12px;outline:none;font-size:14px}.input:focus{box-shadow:0 0 0 3px rgba(15,90,71,.1);border-color:#0f5a47}.package-row{border:1px solid #e2e8f0;background:#f8fafc;border-radius:14px;padding:10px}.table-scroll table{font-size:12px}.deadline-priority,.deadline-critical,.deadline-overdue{border-radius:16px}.expense-row{transition:background .15s}.expense-row:hover{background:#fafaf8}.expense-cat{display:inline-flex;align-items:center;border-radius:999px;padding:4px 7px;font-size:9px;font-weight:900}.expense-row .pill{padding:3px 7px;font-size:9px}
+
+
+/* =========================================================
+   FORTUNA MOBILE UX POLISH
+   Ready to replace / append safely.
+   Desktop layout/functionality is preserved.
+   ========================================================= */
+
+/* Better touch behavior */
+button,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+/* Prevent accidental horizontal page overflow */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+@media (max-width: 899px) {
+
+  /* ---------- Global mobile spacing ---------- */
+  .layout {
+    width: 100%;
+    min-width: 0;
+  }
+
+  header {
+    min-height: 64px;
+  }
+
+  header > div {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+  }
+
+  main {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    padding-top: 12px !important;
+    padding-bottom: 24px !important;
+  }
+
+  /* ---------- Header ---------- */
+  header h1 {
+    font-size: 16px !important;
+    line-height: 1.15;
+    margin-top: 2px !important;
+  }
+
+  header .tracking-\[\.18em\] {
+    font-size: 8px !important;
+  }
+
+  .nav-toggle {
+    width: 42px !important;
+    height: 42px !important;
+    flex: 0 0 42px;
+  }
+
+  #printerBtn {
+    width: 42px;
+    height: 42px;
+    padding: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 42px;
+  }
+
+  #printerBtn span {
+    display: none;
+  }
+
+  #printerBtn i {
+    margin: 0 !important;
+  }
+
+  #globalRefreshBtn {
+    width: 42px;
+    height: 42px;
+    padding: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 42px;
+    font-size: 0;
+  }
+
+  #globalRefreshBtn i {
+    margin: 0 !important;
+    font-size: 14px;
+  }
+
+  /* ---------- Deadline tray ---------- */
+  #globalDeadlineTray {
+    margin-bottom: 12px !important;
+    padding: 10px 11px !important;
+    border-radius: 15px;
+  }
+
+  #globalDeadlineTray .w-9 {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  #globalDeadlineTray button {
+    min-height: 38px;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  /* ---------- Main cards ---------- */
+  .card {
+    border-radius: 16px;
+  }
+
+  /* ---------- Operations sub navigation ---------- */
+  .ops-subnav {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px !important;
+  }
+
+  .ops-subnav button {
+    min-height: 44px;
+    padding: 9px 8px !important;
+    font-size: 11px !important;
+    line-height: 1.1;
+  }
+
+  /* ---------- New order ---------- */
+  #ops-new {
+    padding: 15px !important;
+  }
+
+  #ops-new > div:first-child {
+    margin-bottom: 18px !important;
+  }
+
+  #ops-new h2 {
+    font-size: 18px !important;
+  }
+
+  #ops-new form {
+    max-width: none;
+  }
+
+  .input {
+    min-height: 44px;
+    font-size: 14px;
+    border-radius: 12px;
+  }
+
+  .label {
+    font-size: 9px;
+    letter-spacing: .02em;
+  }
+
+  #packageRows {
+    gap: 8px !important;
+  }
+
+  .package-row {
+    padding: 9px !important;
+    border-radius: 12px;
+  }
+
+  #ops-new form > button:last-child {
+    min-height: 48px;
+    font-size: 13px;
+  }
+
+  /* ---------- Order summary filters ---------- */
+  #ops-list > .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .summary-filter {
+    min-height: 76px;
+    padding: 11px !important;
+    border-radius: 14px;
+  }
+
+  .summary-filter .text-2xl {
+    font-size: 20px !important;
+  }
+
+  /* ---------- Order list header ---------- */
+  #ops-list .card > .p-5 {
+    padding: 13px !important;
+  }
+
+  #ops-list .card > .p-5 h2 {
+    font-size: 16px !important;
+  }
+
+  #ops-list .card > .p-5 > div:last-child {
+    width: 100%;
+  }
+
+  #ops-list .card > .p-5 > div:last-child .input {
+    min-width: 0;
+  }
+
+  #ops-list .card > .p-5 > div:last-child .btn {
+    min-width: 60px;
+    min-height: 44px;
+  }
+
+  /* ---------- Orders table ----------
+     Keep desktop table intact, but make mobile table
+     readable and easier to scroll. */
+  .table-scroll {
+    max-height: none;
+    min-height: 0;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .table-scroll table {
+    min-width: 700px;
+    font-size: 11px;
+  }
+
+  .table-scroll th,
+  .table-scroll td {
+    white-space: nowrap;
+  }
+
+  .table-scroll th {
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+  }
+
+  .table-scroll td {
+    padding-top: 9px !important;
+    padding-bottom: 9px !important;
+  }
+
+  .order-actions {
+    min-width: 130px;
+  }
+
+  /* ---------- Deadline ---------- */
+  #tab-deadline > .flex:first-child,
+  #tab-expense > .flex:first-child {
+    align-items: flex-start;
+  }
+
+  #tab-deadline > .flex:first-child h2,
+  #tab-expense > .flex:first-child h2 {
+    font-size: 18px;
+  }
+
+  #deadlineRefreshBtn,
+  #expenseRefreshBtn {
+    min-width: 42px;
+    min-height: 42px;
+    padding: 0 !important;
+    font-size: 0;
+    flex: 0 0 42px;
+  }
+
+  #deadlineRefreshBtn i,
+  #expenseRefreshBtn i {
+    margin: 0 !important;
+    font-size: 14px;
+  }
+
+  #tab-deadline > .grid {
+    gap: 8px !important;
+  }
+
+  .deadline-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 12px !important;
+    gap: 8px;
+    border-radius: 0 !important;
+  }
+
+  .deadline-main {
+    min-width: 0;
+  }
+
+  .deadline-id {
+    min-width: 0;
+  }
+
+  .deadline-id b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .deadline-customer {
+    min-width: 0;
+  }
+
+  .deadline-meta {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .deadline-meta::-webkit-scrollbar {
+    display: none;
+  }
+
+  .deadline-progress {
+    min-width: 0;
+  }
+
+  .deadline-action .btn {
+    min-height: 36px;
+    padding: 7px 10px !important;
+  }
+
+  /* ---------- Expense ---------- */
+  #tab-expense > .grid:first-of-type {
+    gap: 8px !important;
+  }
+
+  #tab-expense > .grid:first-of-type .card {
+    padding: 12px !important;
+  }
+
+  #tab-expense > .grid:last-of-type {
+    gap: 12px !important;
+  }
+
+  #tab-expense section.card {
+    padding: 14px !important;
+  }
+
+  #tab-expense section.card .input {
+    min-height: 44px;
+  }
+
+  #expenseForm button {
+    min-height: 46px;
+  }
+
+  /* Expense filters: stack cleanly */
+  #expenseSearch,
+  #expenseCategoryFilter,
+  #expenseMethodFilter {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .expense-row {
+    padding: 12px 10px;
+  }
+
+  /* ---------- Mobile drawer ---------- */
+  .mobile-drawer {
+    width: min(82vw, 320px);
+    padding: 16px !important;
+  }
+
+  .mobile-drawer button {
+    min-height: 46px;
+  }
+
+  /* ---------- Modals ---------- */
+  .modal {
+    padding: 10px !important;
+    align-items: flex-end;
+  }
+
+  .modal-box {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: calc(100dvh - 20px) !important;
+    border-radius: 20px !important;
+    padding: 15px !important;
+  }
+
+  #previewModal .modal-box {
+    max-height: calc(100dvh - 12px) !important;
+  }
+
+  #previewModal .modal-box > .grid button,
+  #waModal .modal-box button,
+  #payModal .modal-box button {
+    min-height: 46px;
+  }
+
+  #editModal .modal-box {
+    max-height: calc(100dvh - 12px) !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ---------- Receipt preview ---------- */
+  #receiptPreview {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .receipt {
+    flex: 0 0 300px;
+  }
+
+  /* ---------- Numpad ---------- */
+  #numpadModal {
+    padding: 8px !important;
+  }
+
+  #numpadModal .modal-box {
+    max-width: 430px !important;
+    padding: 12px !important;
+    border-radius: 20px 20px 14px 14px !important;
+  }
+
+  .numpad {
+    gap: 7px;
+  }
+
+  .numpad button {
+    height: 56px;
+    min-height: 56px;
+  }
+
+  /* ---------- Toast ---------- */
+  .toast {
+    left: 12px !important;
+    right: 12px !important;
+    top: auto !important;
+    bottom: 16px !important;
+    width: auto;
+    text-align: center;
+  }
+}
+
+/* =========================================================
+   SMALL PHONE
+   ========================================================= */
+@media (max-width: 480px) {
+
+  header h1 {
+    font-size: 15px !important;
+  }
+
+  header .flex.gap-2 {
+    gap: 5px !important;
+  }
+
+  main {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
+  #globalDeadlineTray {
+    padding: 9px !important;
+  }
+
+  #globalDeadlineTray .text-sm {
+    font-size: 11px !important;
+  }
+
+  #ops-new {
+    padding: 13px !important;
+  }
+
+  #ops-new > div:first-child {
+    align-items: flex-start;
+  }
+
+  #ops-new > div:first-child > span {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  .summary-filter {
+    min-height: 70px;
+    padding: 10px !important;
+  }
+
+  .summary-filter .text-2xl {
+    font-size: 19px !important;
+  }
+
+  .deadline-row {
+    padding: 10px !important;
+  }
+
+  .deadline-row .deadline-meta {
+    font-size: 9px;
+  }
+
+  .modal {
+    padding: 6px !important;
+  }
+
+  .modal-box {
+    border-radius: 18px !important;
+    padding: 13px !important;
+  }
+}
+
+/* =========================================================
+   VERY SMALL PHONE
+   ========================================================= */
+@media (max-width: 360px) {
+
+  #printerBtn,
+  #globalRefreshBtn {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .nav-toggle {
+    width: 38px !important;
+    height: 38px !important;
+    flex-basis: 38px;
+  }
+
+  header h1 {
+    font-size: 14px !important;
+  }
+
+  #globalDeadlineTray button {
+    padding-left: 9px !important;
+    padding-right: 9px !important;
+  }
+
+  .ops-subnav button {
+    font-size: 10px !important;
+  }
+}
