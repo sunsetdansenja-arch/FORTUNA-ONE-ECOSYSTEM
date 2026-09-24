@@ -172,41 +172,45 @@ let ledgerDrafts=[{id:Date.now(),TANGGAL:new Date().toISOString().slice(0,10),KE
 function renderLedgerDrafts(){
   const el=$("ledgerDrafts"); if(!el)return;
   if(!ledgerDrafts.length){el.innerHTML="";return;}
-  el.innerHTML=`<table class="ledger"><thead><tr><th>Tgl.</th><th>Keterangan</th><th>Nominal</th><th>Metode</th><th>Aksi</th></tr></thead><tbody>${ledgerDrafts.map((d,i)=>`
-    <tr class="draft-row" data-draft-id="${d.id}">
-      <td class="date-cell"><input class="ledger-input" type="date" data-field="TANGGAL" value="${esc(d.TANGGAL)}"></td>
-      <td class="note-cell"><input class="ledger-input" type="text" data-field="KETERANGAN" value="${esc(d.KETERANGAN)}" placeholder="Keterangan pengeluaran"></td>
-      <td class="amount-cell"><input class="ledger-input amount-input" type="number" min="1" step="1" data-field="NOMINAL" value="${esc(d.NOMINAL)}" placeholder="0"></td>
-      <td class="method-cell"><select class="ledger-input" data-field="METODE_TRANSAKSI"><option ${d.METODE_TRANSAKSI==="CASH"?"selected":""}>CASH</option><option ${d.METODE_TRANSAKSI==="QRIS"?"selected":""}>QRIS</option><option ${d.METODE_TRANSAKSI==="TRANSFER"?"selected":""}>TRANSFER</option></select></td>
-      <td class="action-cell"><button type="button" class="remove-row" data-remove-draft="${d.id}" title="Hapus baris">×</button></td>
-    </tr>`).join("")}</tbody></table>`;
+  const rows=ledgerDrafts.map(d=>{
+    const cash=d.METODE_TRANSAKSI==="CASH"?" selected":"";
+    const qris=d.METODE_TRANSAKSI==="QRIS"?" selected":"";
+    const transfer=d.METODE_TRANSAKSI==="TRANSFER"?" selected":"";
+    return '<tr class="draft-row" data-draft-id="'+d.id+'">'+
+      '<td class="date-cell"><input class="ledger-input" type="date" data-field="TANGGAL" value="'+esc(d.TANGGAL)+'"></td>'+
+      '<td class="note-cell"><input class="ledger-input" type="text" data-field="KETERANGAN" value="'+esc(d.KETERANGAN)+'" placeholder="Keterangan pengeluaran"></td>'+
+      '<td class="amount-cell"><input class="ledger-input amount-input" type="number" min="1" step="1" data-field="NOMINAL" value="'+esc(d.NOMINAL)+'" placeholder="0"></td>'+
+      '<td class="method-cell"><select class="ledger-input" data-field="METODE_TRANSAKSI"><option value="CASH"'+cash+'>CASH</option><option value="QRIS"'+qris+'>QRIS</option><option value="TRANSFER"'+transfer+'>TRANSFER</option></select></td>'+
+      '<td class="action-cell"><button type="button" class="remove-row" data-remove-draft="'+d.id+'" title="Hapus baris">×</button></td>'+
+      '</tr>';
+  }).join("");
+  el.innerHTML='<table class="ledger"><thead><tr><th>Tgl.</th><th>Keterangan</th><th>Nominal</th><th>Metode</th><th>Aksi</th></tr></thead><tbody>'+rows+'</tbody></table>';
 }
 
 function addLedgerRow(copyDate=true){
   const last=ledgerDrafts[ledgerDrafts.length-1];
-  ledgerDrafts.push({id:Date.now()+Math.random(),TANGGAL:copyDate&&last?.TANGGAL?last.TANGGAL:new Date().toISOString().slice(0,10),KETERANGAN:"",NOMINAL:"",METODE_TRANSAKSI:last?.METODE_TRANSAKSI||"CASH"});
+  ledgerDrafts.push({id:Date.now()+Math.random(),TANGGAL:copyDate&&last&&last.TANGGAL?last.TANGGAL:new Date().toISOString().slice(0,10),KETERANGAN:"",NOMINAL:"",METODE_TRANSAKSI:last&&last.METODE_TRANSAKSI||"CASH"});
   renderLedgerDrafts();
-  setTimeout(()=>{const rows=document.querySelectorAll("#ledgerDrafts [data-field='KETERANGAN']");rows[rows.length-1]?.focus()},0);
+  setTimeout(()=>{const rows=document.querySelectorAll("#ledgerDrafts [data-field='KETERANGAN']");if(rows.length)rows[rows.length-1].focus()},0);
 }
 
 function renderExpenseLedger(){
-  const es=[...state.filteredExpenses].sort((a,b)=>String(a.TANGGAL||"").localeCompare(String(b.TANGGAL||""))||String(a.EXPENSE_ID||"").localeCompare(String(b.EXPENSE_ID||""));
-  $("expenseCount").textContent=`${es.length} transaksi`;
+  const es=state.filteredExpenses.slice().sort((a,b)=>String(a.TANGGAL||"").localeCompare(String(b.TANGGAL||""))||String(a.EXPENSE_ID||"").localeCompare(String(b.EXPENSE_ID||""));
+  $("expenseCount").textContent=es.length+" transaksi";
   $("ledgerPeriodTotal").textContent=rupiah(es.reduce((sum,e)=>sum+num(e.NOMINAL),0));
-  if(!es.length){$("expenseBody").innerHTML=`<tr><td colspan="5" class="ledger-empty">Belum ada pengeluaran pada periode ini.</td></tr>`;return;}
+  if(!es.length){$("expenseBody").innerHTML='<tr><td colspan="5" class="ledger-empty">Belum ada pengeluaran pada periode ini.</td></tr>';return;}
   const groups={};
-  es.forEach(e=>{const d=dateOnly(e.TANGGAL)||"UNKNOWN";(groups[d]??=[]).push(e);});
-  $("expenseBody").innerHTML=Object.entries(groups).map(([d,rows])=>{
+  es.forEach(e=>{const d=dateOnly(e.TANGGAL)||"UNKNOWN";if(!groups[d])groups[d]=[];groups[d].push(e)});
+  let html="";
+  Object.entries(groups).forEach(([d,rows])=>{
     const total=rows.reduce((sum,e)=>sum+num(e.NOMINAL),0);
-    return `<tr class="ledger-day"><td colspan="2">${d==="UNKNOWN"?"Tanggal tidak diketahui":formatDate(d)}</td><td colspan="2" class="day-total">Total ${rupiah(total)}</td><td></td></tr>`+
-      rows.map(e=>`<tr>
-        <td class="date-cell">${formatDate(e.TANGGAL)}</td>
-        <td class="note-cell">${esc(e.KETERANGAN||"-")}</td>
-        <td class="amount-cell">${rupiah(e.NOMINAL)}</td>
-        <td class="method-cell"><span class="badge ${String(e.METODE_TRANSAKSI||"CASH").toLowerCase()}">${esc(e.METODE_TRANSAKSI||"CASH")}</span></td>
-        <td class="action-cell"><span class="text-slate-400">—</span></td>
-      </tr>`).join("");
-  }).join("");
+    html+='<tr class="ledger-day"><td colspan="2">'+(d==="UNKNOWN"?"Tanggal tidak diketahui":formatDate(d))+'</td><td colspan="2" class="day-total">Total '+rupiah(total)+'</td><td></td></tr>';
+    rows.forEach(e=>{
+      const method=String(e.METODE_TRANSAKSI||"CASH");
+      html+='<tr><td class="date-cell">'+formatDate(e.TANGGAL)+'</td><td class="note-cell">'+esc(e.KETERANGAN||"-")+'</td><td class="amount-cell">'+rupiah(e.NOMINAL)+'</td><td class="method-cell"><span class="badge '+method.toLowerCase()+'">'+esc(method)+'</span></td><td class="action-cell">—</td></tr>';
+    });
+  });
+  $("expenseBody").innerHTML=html;
 }
 
 async function saveLedger(){
@@ -216,15 +220,11 @@ async function saveLedger(){
   if(invalid){toast("Setiap baris wajib punya tanggal dan nominal");return;}
   const btn=$("btnSaveLedger");btn.disabled=true;btn.textContent="Menyimpan...";
   try{
-    for(const d of valid){
-      await api("expense_create",{TANGGAL:d.TANGGAL,KETERANGAN:String(d.KETERANGAN||"").trim(),NOMINAL:d.NOMINAL,METODE_TRANSAKSI:d.METODE_TRANSAKSI||"CASH"});
-    }
+    for(const d of valid) await api("expense_create",{TANGGAL:d.TANGGAL,KETERANGAN:String(d.KETERANGAN||"").trim(),NOMINAL:d.NOMINAL,METODE_TRANSAKSI:d.METODE_TRANSAKSI||"CASH"});
     ledgerDrafts=[{id:Date.now(),TANGGAL:valid[valid.length-1].TANGGAL,KETERANGAN:"",NOMINAL:"",METODE_TRANSAKSI:valid[valid.length-1].METODE_TRANSAKSI||"CASH"}];
-    renderLedgerDrafts();
-    toast(`${valid.length} pengeluaran berhasil dicatat`);
-    await loadData();
-  }catch(e){console.error(e);error("Sebagian pengeluaran mungkin belum tersimpan: "+e.message);}
-  finally{btn.disabled=false;btn.textContent="Simpan Semua";}
+    renderLedgerDrafts();toast(valid.length+" pengeluaran berhasil dicatat");await loadData();
+  }catch(e){console.error(e);error("Sebagian pengeluaran mungkin belum tersimpan: "+e.message)}
+  finally{btn.disabled=false;btn.textContent="Simpan Semua"}
 }
 
 function defaults(){const n=new Date(),f=new Date(n.getFullYear(),n.getMonth(),1);$("dateFrom").value=f.toISOString().slice(0,10);$("dateTo").value=n.toISOString().slice(0,10)}function reset(){$("dateFrom").value="";$("dateTo").value="";$("paymentFilter").value="ALL";applyFilters()}
