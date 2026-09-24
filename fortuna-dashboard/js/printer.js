@@ -144,11 +144,12 @@ async function printReceipt(o){
   push(receiptTextLine('TOTAL',rupiah(total)));
   const paymentStatus=String(o.STATUS_PEMBAYARAN||'BELUM LUNAS').toUpperCase();
   const paymentMethod=String(o.METODE_TRANSAKSI||'BELUM LUNAS').toUpperCase();
-  push('\x1B\x61\x01\x1B\x45\x01'+(paymentStatus==='LUNAS'?'LUNAS':'BELUM DIBAYAR')+'\x1B\x45\x00'+nl);
-  push('Metode: '+paymentMethod+nl);
-  push('\x1B\x61\x00');
-  push('\n-- PEMBAYARAN HARAP MENGGUNAKAN QRIS --\n\n');
-  push('\x1B\x45\x01PERHATIAN\x1B\x45\x00\n');
+  // Match the HTML preview: status is right-aligned and the method is hidden
+  // when it is the default "BELUM LUNAS" value.
+  push('\\x1B\\x61\\x02'+paymentStatus+'\\x1B\\x61\\x00'+nl);
+  if(paymentMethod!=='BELUM LUNAS') push('\\x1B\\x61\\x02Metode: '+paymentMethod+'\\x1B\\x61\\x00'+nl);
+  push('\\x1B\\x61\\x01-- PEMBAYARAN HARAP MENGGUNAKAN QRIS --\\x1B\\x61\\x00\\n');
+  push('\\x1B\\x61\\x01\\x1B\\x45\\x01PERHATIAN\\x1B\\x45\\x00\\n');
   const notes=[
     'Baju putih dicuci terpisah minimal 3 kg.',
     'Kami tidak menerima komplain lebih dari 2x24jam setelah customer menerima Laundry.',
@@ -158,9 +159,15 @@ async function printReceipt(o){
     'Laundry yang lebih dari 10 hari tidak diambil bukan menjadi tanggung jawab kami.',
     'Laundry anda GRATIS apabila tidak mendapatkan nota.'
   ];
-  notes.forEach((n,idx)=>{wrapReceipt(n,30).forEach((line,j)=>push((j===0?'- ':'  ')+line+'\n'));if(idx===2)push('\n')});
-  push('\nKritik dan saran\n0856930280500\n\n#Terimakasih Kasih#\n\n\n\n');
-  push('\x1D\x56\x00');
+  // Preview centers the notes and footer; mirror that on the thermal printer.
+  notes.forEach((n,idx)=>{
+    wrapReceipt(n,30).forEach((line,j)=>{
+      push('\\x1B\\x61\\x01'+(j===0?'- ':'  ')+line+'\\x1B\\x61\\x00\\n');
+    });
+    if(idx===2)push('\\n');
+  });
+  push('\\x1B\\x61\\x01\\nKritik dan saran\\n0856930280500\\n\\n#Terimakasih Kasih#\\n\\n\\n\\n\\x1B\\x61\\x00');
+  push('\\x1D\\x56\\x00');
 
   const payload=new Uint8Array(bytes.length);payload.set(bytes);
   const chunk=180;
