@@ -47,6 +47,36 @@ button,input,select{font:inherit}button{cursor:pointer}
 .toast{position:fixed;right:20px;bottom:20px;background:#111827;color:#fff;padding:12px 15px;border-radius:11px;box-shadow:var(--shadow);display:none;z-index:100;font-size:13px}.toast.show{display:block}
 .error{background:#fef2f2;color:#991b1b;border:1px solid #fecaca;padding:12px;border-radius:11px;margin-bottom:14px;display:none;font-size:13px}
 .print-report{display:none}
+.ledger-panel{margin-bottom:18px}
+.ledger-toolbar{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#fcfdff}
+.ledger-toolbar .hint{font-size:11px;color:var(--muted)}
+.ledger-actions{display:flex;gap:8px;flex-wrap:wrap}
+.ledger-wrap{overflow:auto}
+.ledger{width:100%;min-width:760px;border-collapse:collapse}
+.ledger th{background:#f8fafc}
+.ledger th,.ledger td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+.ledger .date-cell{width:95px;color:#475467;font-weight:800}
+.ledger .note-cell{min-width:280px;white-space:normal}
+.ledger .amount-cell{width:145px;text-align:right;font-weight:850}
+.ledger .method-cell{width:120px}
+.ledger .action-cell{width:85px;text-align:center}
+.ledger-day td{background:#f7f9fc;border-top:1px solid #dfe4ec;border-bottom:1px solid #e7ebf0;font-size:11px;font-weight:850;color:#475467;text-transform:uppercase;letter-spacing:.45px}
+.ledger-day .day-total{text-align:right}
+.ledger-input{width:100%;height:38px;border:1px solid #d8dee8;border-radius:9px;padding:0 10px;background:#fff;outline:none}
+.ledger-input:focus{border-color:#94a3b8;box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+.ledger-input.amount-input{text-align:right}
+.draft-row{background:#fffdf5}
+.draft-row td{border-bottom:1px solid #ece6cf}
+.remove-row{border:0;background:#fef2f2;color:#b42318;border-radius:8px;width:32px;height:32px;font-weight:900}
+.remove-row:hover{background:#fee4e2}
+.ledger-empty{padding:34px 20px;text-align:center;color:var(--muted)}
+.ledger-total{display:flex;justify-content:flex-end;gap:24px;padding:12px 16px;background:#fbfcfe;border-top:1px solid var(--line);font-size:13px}
+.ledger-total strong{font-size:15px}
+@media(max-width:760px){
+  .ledger{min-width:680px}
+  .ledger-toolbar{align-items:flex-start}
+  .ledger-actions{width:100%}
+}
 @media(max-width:1100px){.cards{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:760px){.page{padding:15px}.header{align-items:flex-start;flex-direction:column}.header h1{font-size:25px}.filters{align-items:stretch}.field{flex:1;min-width:140px}.cards{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.methods{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.form-grid .full{grid-column:auto}}
 @media(max-width:450px){.cards{grid-template-columns:1fr}.actions{width:100%}.actions .btn{flex:1}}
@@ -68,13 +98,33 @@ button,input,select{font:inherit}button{cursor:pointer}
 </head>
 <body>
 <div class="page">
-<header class="header"><div class="brand"><div class="brand-mark">F</div><div><h1>Finance</h1><p>Ringkasan pemasukan, piutang, dan pengeluaran Fortuna.</p></div></div><div class="actions"><button class="btn print" id="btnPrint">▣ Cetak Pembukuan</button><button class="btn" id="btnRefresh">↻ Refresh</button><button class="btn primary" id="btnExpense">+ Tambah Pengeluaran</button></div></header>
+<header class="header"><div class="brand"><div class="brand-mark">F</div><div><h1>Finance</h1><p>Ringkasan pemasukan, piutang, dan pengeluaran Fortuna.</p></div></div><div class="actions"><button class="btn print" id="btnPrint">▣ Cetak Pembukuan</button><button class="btn" id="btnRefresh">↻ Refresh</button><button class="btn primary" id="btnAddLedgerRow">+ Tambah Baris</button></div></header>
 <div class="error" id="errorBox"></div>
 <section class="filters"><div class="field"><label>Dari tanggal</label><input type="date" id="dateFrom"></div><div class="field"><label>Sampai tanggal</label><input type="date" id="dateTo"></div><div class="field"><label>Status pembayaran</label><select id="paymentFilter"><option value="ALL">Semua</option><option value="LUNAS">Lunas</option><option value="BELUM LUNAS">Belum Lunas</option></select></div><button class="btn primary" id="btnApply">Terapkan Filter</button><button class="btn" id="btnReset">Reset</button></section>
 <section class="cards"><div class="card"><div class="label">TOTAL PENJUALAN</div><div class="value" id="totalSales">Rp0</div><div class="sub">Total tagihan order</div></div><div class="card green"><div class="label">SUDAH DIBAYAR</div><div class="value" id="totalPaid">Rp0</div><div class="sub">Kas yang sudah diterima</div></div><div class="card red"><div class="label">BELUM LUNAS</div><div class="value" id="totalUnpaid">Rp0</div><div class="sub">Piutang pelanggan</div></div><div class="card orange"><div class="label">PENGELUARAN</div><div class="value" id="totalExpense">Rp0</div><div class="sub">Expense pada periode</div></div><div class="card blue"><div class="label">SALDO BERSIH</div><div class="value" id="netBalance">Rp0</div><div class="sub">Sudah dibayar − pengeluaran</div></div></section>
 <div class="grid2"><section class="panel"><div class="panel-head"><h2>Metode Pembayaran</h2></div><div class="panel-body"><div class="methods"><div class="method"><div class="name">CASH</div><div class="amount" id="cashTotal">Rp0</div></div><div class="method"><div class="name">QRIS</div><div class="amount" id="qrisTotal">Rp0</div></div><div class="method"><div class="name">TRANSFER</div><div class="amount" id="transferTotal">Rp0</div></div></div></div></section><section class="panel"><div class="panel-head"><h2>Belum Lunas</h2><span id="unpaidCount" class="badge unpaid">0 order</span></div><div class="table-wrap"><table><thead><tr><th>Order</th><th>Pelanggan</th><th>Tagihan</th><th>Aksi</th></tr></thead><tbody id="unpaidBody"></tbody></table></div></section></div>
 <section class="panel" style="margin-bottom:18px"><div class="panel-head"><h2>Transaksi Penjualan</h2><span id="salesCount" class="badge cash">0 transaksi</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Order</th><th>Pelanggan</th><th>Paket</th><th>Metode</th><th>Status</th><th>Tagihan</th></tr></thead><tbody id="salesBody"></tbody></table></div></section>
-<section class="panel"><div class="panel-head"><h2>Pengeluaran</h2><span id="expenseCount" class="badge cash">0 transaksi</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Keterangan</th><th>Metode</th><th>Nominal</th></tr></thead><tbody id="expenseBody"></tbody></table></div></section>
+<section class="panel ledger-panel">
+  <div class="panel-head">
+    <div><h2>Log Pengeluaran</h2><div class="hint">Pencatatan cepat seperti buku kas — satu baris untuk satu transaksi.</div></div>
+    <span id="expenseCount" class="badge cash">0 transaksi</span>
+  </div>
+  <div class="ledger-toolbar">
+    <div class="hint">Tekan Enter pada baris terakhir untuk menambah baris baru.</div>
+    <div class="ledger-actions">
+      <button class="btn small" id="btnAddLedgerRowInline">+ Baris</button>
+      <button class="btn small primary" id="btnSaveLedger">Simpan Semua</button>
+    </div>
+  </div>
+  <div id="ledgerDrafts" class="ledger-wrap"></div>
+  <div class="ledger-wrap">
+    <table class="ledger">
+      <thead><tr><th>Tgl.</th><th>Keterangan</th><th>Nominal</th><th>Metode</th><th>Aksi</th></tr></thead>
+      <tbody id="expenseBody"></tbody>
+    </table>
+  </div>
+  <div class="ledger-total"><span>Total pengeluaran periode:</span><strong id="ledgerPeriodTotal">Rp0</strong></div>
+</section>
 <div class="footer-note">Finance menggunakan data order, pembayaran, dan expense dari webhook Fortuna yang sama dengan dashboard.</div></div>
 
 <div class="print-report" id="printReport">
@@ -97,7 +147,6 @@ button,input,select{font:inherit}button{cursor:pointer}
   </div>
   <div class="print-footer"><span>Fortuna Finance</span><span id="printTimestamp"></span></div>
 </div>
-<div class="modal-backdrop" id="expenseModal"><div class="modal"><div class="modal-head"><h3>Tambah Pengeluaran</h3><button class="btn small" id="btnCloseModal">✕</button></div><div class="modal-body"><form id="expenseForm"><div class="form-grid"><div class="field"><label>Tanggal</label><input type="date" id="expenseDate" required></div><div class="field full"><label>Keterangan</label><input type="text" id="expenseNote" placeholder="Contoh: beli deterjen"></div><div class="field"><label>Nominal</label><input type="number" id="expenseAmount" min="1" step="1" placeholder="50000" required></div><div class="field"><label>Metode</label><select id="expenseMethod"><option>CASH</option><option>QRIS</option><option>TRANSFER</option></select></div></div><div class="modal-actions"><button type="button" class="btn" id="btnCancelExpense">Batal</button><button type="submit" class="btn primary" id="btnSaveExpense">Simpan Pengeluaran</button></div></form></div></div></div>
 <div class="toast" id="toast"></div>
 <script>
 const WEBHOOK_URL="https://n8n-mzbmiib3etk4.kangkung.sumopod.my.id/webhook/fortuna-v5";
@@ -116,10 +165,68 @@ function applyFilters(){const f=$("dateFrom").value,t=$("dateTo").value,p=$("pay
 function render(){const os=state.filteredOrders,es=state.filteredExpenses,paid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS"),unpaid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()!=="LUNAS");const sales=os.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0),cash=paid.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0),due=unpaid.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0),exp=es.reduce((s,e)=>s+num(e.NOMINAL),0);$("totalSales").textContent=rupiah(sales);$("totalPaid").textContent=rupiah(cash);$("totalUnpaid").textContent=rupiah(due);$("totalExpense").textContent=rupiah(exp);$("netBalance").textContent=rupiah(cash-exp);const methods={CASH:0,QRIS:0,TRANSFER:0};paid.forEach(o=>{const m=String(o.METODE_TRANSAKSI||"").toUpperCase();if(methods[m]!==undefined)methods[m]+=num(o.TOTAL_TAGIHAN)});$("cashTotal").textContent=rupiah(methods.CASH);$("qrisTotal").textContent=rupiah(methods.QRIS);$("transferTotal").textContent=rupiah(methods.TRANSFER);$("salesCount").textContent=`${os.length} transaksi`;$('expenseCount').textContent=`${es.length} transaksi`;$('unpaidCount').textContent=`${unpaid.length} order`;
 $("salesBody").innerHTML=os.length?os.map(o=>{const p=String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS",m=String(o.METODE_TRANSAKSI||"BELUM LUNAS").toUpperCase();return`<tr><td>${formatDate(o.START)}</td><td><strong>#${esc(o.ORDER_ID)}</strong></td><td>${esc(o.NAMA)}</td><td>${esc(o.PAKET||"-")}</td><td><span class="badge ${m.toLowerCase().replace(/\s/g,"-")}">${esc(m)}</span></td><td><span class="badge ${p?"paid":"unpaid"}">${p?"LUNAS":"BELUM LUNAS"}</span></td><td class="amount">${rupiah(o.TOTAL_TAGIHAN)}</td></tr>`}).join(""):"<tr><td colspan='7' class='empty'>Tidak ada transaksi pada filter ini.</td></tr>";
 $("unpaidBody").innerHTML=unpaid.length?unpaid.map(o=>`<tr><td><strong>#${esc(o.ORDER_ID)}</strong></td><td>${esc(o.NAMA)}</td><td class="amount">${rupiah(o.TOTAL_TAGIHAN)}</td><td><button class="btn small primary" onclick="openPayment('${esc(o.ORDER_ID)}')">Lunasi</button></td></tr>`).join(""):"<tr><td colspan='4' class='empty'>Tidak ada piutang pada filter ini.</td></tr>";
-$("expenseBody").innerHTML=es.length?es.map(e=>{const m=String(e.METODE_TRANSAKSI||"CASH").toUpperCase();return`<tr><td>${formatDate(e.TANGGAL)}</td><td>${esc(e.KETERANGAN||"-")}</td><td><span class="badge ${m.toLowerCase()}">${esc(m)}</span></td><td class="amount">${rupiah(e.NOMINAL)}</td></tr>`}).join(""):"<tr><td colspan='4' class='empty'>Belum ada pengeluaran pada filter ini.</td></tr>"}
+renderExpenseLedger();}
 async function openPayment(id){const method=prompt(`Pelunasan order #${id}\n\nKetik metode pembayaran:\nCASH / QRIS / TRANSFER`,`CASH`);if(method===null)return;const m=method.trim().toUpperCase();if(!["CASH","QRIS","TRANSFER"].includes(m)){toast("Metode harus CASH, QRIS, atau TRANSFER");return}try{await api("payment_update",{ORDER_ID:id,METODE_TRANSAKSI:m});toast(`Order #${id} berhasil dilunasi`);await loadData()}catch(e){console.error(e);error("Gagal melunasi order: "+e.message)}}
-function openExpenseModal(){$("expenseDate").value=new Date().toISOString().slice(0,10);$("expenseNote").value="";$("expenseAmount").value="";$("expenseModal").classList.add("show")}function closeExpenseModal(){$("expenseModal").classList.remove("show")}
-async function saveExpense(e){e.preventDefault();const b=$("btnSaveExpense"),data={TANGGAL:$("expenseDate").value,KETERANGAN:$("expenseNote").value.trim(),NOMINAL:$("expenseAmount").value,METODE_TRANSAKSI:$("expenseMethod").value};if(!data.TANGGAL||!data.NOMINAL){toast("Tanggal dan nominal wajib diisi");return}b.disabled=true;b.textContent="Menyimpan...";try{await api("expense_create",data);closeExpenseModal();toast("Pengeluaran berhasil dicatat");await loadData()}catch(err){console.error(err);error("Gagal menyimpan pengeluaran: "+err.message)}finally{b.disabled=false;b.textContent="Simpan Pengeluaran"}}
+let ledgerDrafts=[{id:Date.now(),TANGGAL:new Date().toISOString().slice(0,10),KETERANGAN:"",NOMINAL:"",METODE_TRANSAKSI:"CASH"}];
+
+function renderLedgerDrafts(){
+  const el=$("ledgerDrafts"); if(!el)return;
+  if(!ledgerDrafts.length){el.innerHTML="";return;}
+  el.innerHTML=`<table class="ledger"><thead><tr><th>Tgl.</th><th>Keterangan</th><th>Nominal</th><th>Metode</th><th>Aksi</th></tr></thead><tbody>${ledgerDrafts.map((d,i)=>`
+    <tr class="draft-row" data-draft-id="${d.id}">
+      <td class="date-cell"><input class="ledger-input" type="date" data-field="TANGGAL" value="${esc(d.TANGGAL)}"></td>
+      <td class="note-cell"><input class="ledger-input" type="text" data-field="KETERANGAN" value="${esc(d.KETERANGAN)}" placeholder="Keterangan pengeluaran"></td>
+      <td class="amount-cell"><input class="ledger-input amount-input" type="number" min="1" step="1" data-field="NOMINAL" value="${esc(d.NOMINAL)}" placeholder="0"></td>
+      <td class="method-cell"><select class="ledger-input" data-field="METODE_TRANSAKSI"><option ${d.METODE_TRANSAKSI==="CASH"?"selected":""}>CASH</option><option ${d.METODE_TRANSAKSI==="QRIS"?"selected":""}>QRIS</option><option ${d.METODE_TRANSAKSI==="TRANSFER"?"selected":""}>TRANSFER</option></select></td>
+      <td class="action-cell"><button type="button" class="remove-row" data-remove-draft="${d.id}" title="Hapus baris">×</button></td>
+    </tr>`).join("")}</tbody></table>`;
+}
+
+function addLedgerRow(copyDate=true){
+  const last=ledgerDrafts[ledgerDrafts.length-1];
+  ledgerDrafts.push({id:Date.now()+Math.random(),TANGGAL:copyDate&&last?.TANGGAL?last.TANGGAL:new Date().toISOString().slice(0,10),KETERANGAN:"",NOMINAL:"",METODE_TRANSAKSI:last?.METODE_TRANSAKSI||"CASH"});
+  renderLedgerDrafts();
+  setTimeout(()=>{const rows=document.querySelectorAll("#ledgerDrafts [data-field='KETERANGAN']");rows[rows.length-1]?.focus()},0);
+}
+
+function renderExpenseLedger(){
+  const es=[...state.filteredExpenses].sort((a,b)=>String(a.TANGGAL||"").localeCompare(String(b.TANGGAL||""))||String(a.EXPENSE_ID||"").localeCompare(String(b.EXPENSE_ID||""));
+  $("expenseCount").textContent=`${es.length} transaksi`;
+  $("ledgerPeriodTotal").textContent=rupiah(es.reduce((sum,e)=>sum+num(e.NOMINAL),0));
+  if(!es.length){$("expenseBody").innerHTML=`<tr><td colspan="5" class="ledger-empty">Belum ada pengeluaran pada periode ini.</td></tr>`;return;}
+  const groups={};
+  es.forEach(e=>{const d=dateOnly(e.TANGGAL)||"UNKNOWN";(groups[d]??=[]).push(e);});
+  $("expenseBody").innerHTML=Object.entries(groups).map(([d,rows])=>{
+    const total=rows.reduce((sum,e)=>sum+num(e.NOMINAL),0);
+    return `<tr class="ledger-day"><td colspan="2">${d==="UNKNOWN"?"Tanggal tidak diketahui":formatDate(d)}</td><td colspan="2" class="day-total">Total ${rupiah(total)}</td><td></td></tr>`+
+      rows.map(e=>`<tr>
+        <td class="date-cell">${formatDate(e.TANGGAL)}</td>
+        <td class="note-cell">${esc(e.KETERANGAN||"-")}</td>
+        <td class="amount-cell">${rupiah(e.NOMINAL)}</td>
+        <td class="method-cell"><span class="badge ${String(e.METODE_TRANSAKSI||"CASH").toLowerCase()}">${esc(e.METODE_TRANSAKSI||"CASH")}</span></td>
+        <td class="action-cell"><span class="text-slate-400">—</span></td>
+      </tr>`).join("");
+  }).join("");
+}
+
+async function saveLedger(){
+  const valid=ledgerDrafts.filter(d=>String(d.KETERANGAN||"").trim()||String(d.NOMINAL||"").trim());
+  if(!valid.length){toast("Belum ada transaksi untuk disimpan");return;}
+  const invalid=valid.find(d=>!d.TANGGAL||!d.NOMINAL||num(d.NOMINAL)<=0);
+  if(invalid){toast("Setiap baris wajib punya tanggal dan nominal");return;}
+  const btn=$("btnSaveLedger");btn.disabled=true;btn.textContent="Menyimpan...";
+  try{
+    for(const d of valid){
+      await api("expense_create",{TANGGAL:d.TANGGAL,KETERANGAN:String(d.KETERANGAN||"").trim(),NOMINAL:d.NOMINAL,METODE_TRANSAKSI:d.METODE_TRANSAKSI||"CASH"});
+    }
+    ledgerDrafts=[{id:Date.now(),TANGGAL:valid[valid.length-1].TANGGAL,KETERANGAN:"",NOMINAL:"",METODE_TRANSAKSI:valid[valid.length-1].METODE_TRANSAKSI||"CASH"}];
+    renderLedgerDrafts();
+    toast(`${valid.length} pengeluaran berhasil dicatat`);
+    await loadData();
+  }catch(e){console.error(e);error("Sebagian pengeluaran mungkin belum tersimpan: "+e.message);}
+  finally{btn.disabled=false;btn.textContent="Simpan Semua";}
+}
+
 function defaults(){const n=new Date(),f=new Date(n.getFullYear(),n.getMonth(),1);$("dateFrom").value=f.toISOString().slice(0,10);$("dateTo").value=n.toISOString().slice(0,10)}function reset(){$("dateFrom").value="";$("dateTo").value="";$("paymentFilter").value="ALL";applyFilters()}
 
 function filterLabel(){
@@ -158,6 +265,37 @@ function printFinance(){
   buildPrintReport();
   window.print();
 }
-document.addEventListener("DOMContentLoaded",()=>{defaults();$("btnPrint").addEventListener("click",printFinance);$("btnRefresh").addEventListener("click",loadData);$("btnApply").addEventListener("click",applyFilters);$("btnReset").addEventListener("click",reset);$("btnExpense").addEventListener("click",openExpenseModal);$("btnCloseModal").addEventListener("click",closeExpenseModal);$("btnCancelExpense").addEventListener("click",closeExpenseModal);$("expenseForm").addEventListener("submit",saveExpense);$("expenseModal").addEventListener("click",e=>{if(e.target===$("expenseModal"))closeExpenseModal()});loadData()});
+document.addEventListener("DOMContentLoaded",()=>{
+  defaults();
+  renderLedgerDrafts();
+  $("btnPrint").addEventListener("click",printFinance);
+  $("btnRefresh").addEventListener("click",loadData);
+  $("btnApply").addEventListener("click",applyFilters);
+  $("btnReset").addEventListener("click",reset);
+  $("btnAddLedgerRow").addEventListener("click",()=>addLedgerRow());
+  $("btnAddLedgerRowInline").addEventListener("click",()=>addLedgerRow());
+  $("btnSaveLedger").addEventListener("click",saveLedger);
+  $("ledgerDrafts").addEventListener("input",e=>{
+    const row=e.target.closest("[data-draft-id]"); if(!row)return;
+    const d=ledgerDrafts.find(x=>String(x.id)===String(row.dataset.draftId)); if(!d)return;
+    const field=e.target.dataset.field; if(field)d[field]=e.target.value;
+  });
+  $("ledgerDrafts").addEventListener("change",e=>{
+    const row=e.target.closest("[data-draft-id]"); if(!row)return;
+    const d=ledgerDrafts.find(x=>String(x.id)===String(row.dataset.draftId)); if(!d)return;
+    const field=e.target.dataset.field; if(field)d[field]=e.target.value;
+  });
+  $("ledgerDrafts").addEventListener("click",e=>{
+    const id=e.target.dataset.removeDraft; if(!id)return;
+    ledgerDrafts=ledgerDrafts.filter(x=>String(x.id)!==String(id));
+    renderLedgerDrafts();
+  });
+  $("ledgerDrafts").addEventListener("keydown",e=>{
+    if(e.key==="Enter" && e.target.dataset.field==="NOMINAL"){
+      e.preventDefault(); addLedgerRow();
+    }
+  });
+  loadData();
+});
 </script>
 </body></html>
