@@ -155,85 +155,147 @@ const $=id=>document.getElementById(id);
 function rupiah(v){return new Intl.NumberFormat("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}).format(Number(v)||0)}
 function num(v){if(typeof v==="number")return Number.isFinite(v)?v:0;const n=Number(String(v??"").replace(/[^0-9.-]/g,""));return Number.isFinite(n)?n:0}
 function dateOnly(v){if(!v)return"";const m=String(v).match(/^(\d{4}-\d{2}-\d{2})/);if(m)return m[1];const d=new Date(v);return Number.isNaN(d.getTime())?"":d.toISOString().slice(0,10)}
-function formatDate(v){const d=dateOnly(v);if(!d)return"-";const [y,m,day]=d.split("-");return`${day}/${m}/${y}`}
+function formatDate(v){const d=dateOnly(v);if(!d)return"-";const parts=d.split("-");return parts[2]+"/"+parts[1]+"/"+parts[0]}
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
-function toast(m){const e=$("toast");e.textContent=m;e.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove("show"),3000)}
-function error(m){const e=$("errorBox");e.textContent=m;e.style.display="block"}function clearError(){$("errorBox").style.display="none"}
-async function api(action,data={}){const r=await fetch(WEBHOOK_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,data})});const raw=await r.text();let j;try{j=JSON.parse(raw)}catch(e){throw Error("Response backend bukan JSON: "+raw.slice(0,200))}if(!r.ok)throw Error(j.message||j.error||`HTTP ${r.status}`);if(j.status&&j.status!=="success")throw Error(j.message||"Backend gagal");return j}
-async function loadData(){clearError();$("btnRefresh").disabled=true;$("btnRefresh").textContent="Memuat...";try{const [a,b]=await Promise.all([api("read"),api("expense_read")]);state.orders=Array.isArray(a?.data?.orders)?a.data.orders:[];state.expenses=Array.isArray(b?.data?.expenses)?b.data.expenses:[];applyFilters();toast("Data finance berhasil diperbarui")}catch(e){console.error(e);error("Gagal mengambil data backend: "+e.message)}finally{$("btnRefresh").disabled=false;$("btnRefresh").textContent="↻ Refresh"}}
-function applyFilters(){const f=$("dateFrom").value,t=$("dateTo").value,p=$("paymentFilter").value;state.filteredOrders=state.orders.filter(o=>{const d=dateOnly(o.START);if(f&&(!d||d<f))return false;if(t&&(!d||d>t))return false;if(p!=="ALL"&&String(o.STATUS_PEMBAYARAN||"").toUpperCase()!==p)return false;return true});state.filteredExpenses=state.expenses.filter(e=>{const d=dateOnly(e.TANGGAL);if(f&&(!d||d<f))return false;if(t&&(!d||d>t))return false;return true});render()}
-function render(){const os=state.filteredOrders,es=state.filteredExpenses,paid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS"),unpaid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()!=="LUNAS");const sales=os.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0),cash=paid.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0),due=unpaid.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0),exp=es.reduce((s,e)=>s+num(e.NOMINAL),0);$("totalSales").textContent=rupiah(sales);$("totalPaid").textContent=rupiah(cash);$("totalUnpaid").textContent=rupiah(due);$("totalExpense").textContent=rupiah(exp);$("netBalance").textContent=rupiah(cash-exp);const methods={CASH:0,QRIS:0,TRANSFER:0};paid.forEach(o=>{const m=String(o.METODE_TRANSAKSI||"").toUpperCase();if(methods[m]!==undefined)methods[m]+=num(o.TOTAL_TAGIHAN)});$("cashTotal").textContent=rupiah(methods.CASH);$("qrisTotal").textContent=rupiah(methods.QRIS);$("transferTotal").textContent=rupiah(methods.TRANSFER);$("salesCount").textContent=`${os.length} transaksi`;$('expenseCount').textContent=`${es.length} transaksi`;$('unpaidCount').textContent=`${unpaid.length} order`;
-$("salesBody").innerHTML=os.length?os.map(o=>{const p=String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS",m=String(o.METODE_TRANSAKSI||"BELUM LUNAS").toUpperCase();return`<tr><td>${formatDate(o.START)}</td><td><strong>#${esc(o.ORDER_ID)}</strong></td><td>${esc(o.NAMA)}</td><td>${esc(o.PAKET||"-")}</td><td><span class="badge ${m.toLowerCase().replace(/\s/g,"-")}">${esc(m)}</span></td><td><span class="badge ${p?"paid":"unpaid"}">${p?"LUNAS":"BELUM LUNAS"}</span></td><td class="amount">${rupiah(o.TOTAL_TAGIHAN)}</td></tr>`}).join(""):"<tr><td colspan='7' class='empty'>Tidak ada transaksi pada filter ini.</td></tr>";
-$("unpaidBody").innerHTML=unpaid.length?unpaid.map(o=>`<tr><td><strong>#${esc(o.ORDER_ID)}</strong></td><td>${esc(o.NAMA)}</td><td class="amount">${rupiah(o.TOTAL_TAGIHAN)}</td><td><button class="btn small primary" onclick="openPayment('${esc(o.ORDER_ID)}')">Lunasi</button></td></tr>`).join(""):"<tr><td colspan='4' class='empty'>Tidak ada piutang pada filter ini.</td></tr>";
-renderExpenseLedger();}
-async function openPayment(id){const method=prompt(`Pelunasan order #${id}\n\nKetik metode pembayaran:\nCASH / QRIS / TRANSFER`,`CASH`);if(method===null)return;const m=method.trim().toUpperCase();if(!["CASH","QRIS","TRANSFER"].includes(m)){toast("Metode harus CASH, QRIS, atau TRANSFER");return}try{await api("payment_update",{ORDER_ID:id,METODE_TRANSAKSI:m});toast(`Order #${id} berhasil dilunasi`);await loadData()}catch(e){console.error(e);error("Gagal melunasi order: "+e.message)}}
-let ledgerDrafts=[{id:Date.now(),TANGGAL:new Date().toISOString().slice(0,10),KETERANGAN:"",NOMINAL:"",METODE_TRANSAKSI:"CASH"}];
-
-function renderLedgerDrafts(){
-  const el=$("ledgerDrafts"); if(!el)return;
-  if(!ledgerDrafts.length){el.innerHTML="";return;}
-  const rows=ledgerDrafts.map(d=>{
-    const cash=d.METODE_TRANSAKSI==="CASH"?" selected":"";
-    const qris=d.METODE_TRANSAKSI==="QRIS"?" selected":"";
-    const transfer=d.METODE_TRANSAKSI==="TRANSFER"?" selected":"";
-    return '<tr class="draft-row" data-draft-id="'+d.id+'">'+
-      '<td class="date-cell"><input class="ledger-input" type="date" data-field="TANGGAL" value="'+esc(d.TANGGAL)+'"></td>'+
-      '<td class="note-cell"><input class="ledger-input" type="text" data-field="KETERANGAN" value="'+esc(d.KETERANGAN)+'" placeholder="Keterangan pengeluaran"></td>'+
-      '<td class="amount-cell"><input class="ledger-input amount-input" type="number" min="1" step="1" data-field="NOMINAL" value="'+esc(d.NOMINAL)+'" placeholder="0"></td>'+
-      '<td class="method-cell"><select class="ledger-input" data-field="METODE_TRANSAKSI"><option value="CASH"'+cash+'>CASH</option><option value="QRIS"'+qris+'>QRIS</option><option value="TRANSFER"'+transfer+'>TRANSFER</option></select></td>'+
-      '<td class="action-cell"><button type="button" class="remove-row" data-remove-draft="'+d.id+'" title="Hapus baris">×</button></td>'+
-      '</tr>';
-  }).join("");
-  el.innerHTML='<table class="ledger"><thead><tr><th>Tgl.</th><th>Keterangan</th><th>Nominal</th><th>Metode</th><th>Aksi</th></tr></thead><tbody>'+rows+'</tbody></table>';
+function toast(m){const e=$("toast");if(!e)return;e.textContent=m;e.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove("show"),3000)}
+function error(m){const e=$("errorBox");if(!e)return;e.textContent=m;e.style.display="block"}
+function clearError(){const e=$("errorBox");if(e)e.style.display="none"}
+async function api(action,data={}){
+  const r=await fetch(WEBHOOK_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,data})});
+  const raw=await r.text();
+  let j;
+  try{j=JSON.parse(raw)}catch(e){throw Error("Response backend bukan JSON: "+raw.slice(0,200))}
+  if(!r.ok)throw Error(j.message||j.error||("HTTP "+r.status));
+  if(j.status&&j.status!=="success")throw Error(j.message||"Backend gagal");
+  return j;
 }
-
-function addLedgerRow(copyDate=true){
+async function loadData(){
+  clearError();
+  const refresh=$("btnRefresh");
+  if(refresh){refresh.disabled=true;refresh.textContent="Memuat..."}
+  try{
+    const results=await Promise.all([api("read"),api("expense_read")]);
+    const a=results[0],b=results[1];
+    state.orders=Array.isArray(a&&a.data&&a.data.orders)?a.data.orders:[];
+    state.expenses=Array.isArray(b&&b.data&&b.data.expenses)?b.data.expenses:[];
+    applyFilters();
+    toast("Data finance berhasil diperbarui");
+  }catch(e){
+    console.error(e);
+    error("Gagal mengambil data backend: "+e.message);
+  }finally{
+    if(refresh){refresh.disabled=false;refresh.textContent="↻ Refresh"}
+  }
+}
+function applyFilters(){
+  const f=$("dateFrom").value,t=$("dateTo").value,p=$("paymentFilter").value;
+  state.filteredOrders=state.orders.filter(o=>{
+    const d=dateOnly(o.START);
+    if(f&&(!d||d<f))return false;
+    if(t&&(!d||d>t))return false;
+    if(p!=="ALL"&&String(o.STATUS_PEMBAYARAN||"").toUpperCase()!==p)return false;
+    return true;
+  });
+  state.filteredExpenses=state.expenses.filter(e=>{
+    const d=dateOnly(e.TANGGAL);
+    if(f&&(!d||d<f))return false;
+    if(t&&(!d||d>t))return false;
+    return true;
+  });
+  render();
+}
+function render(){
+  const os=state.filteredOrders,es=state.filteredExpenses;
+  const paid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS");
+  const unpaid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()!=="LUNAS");
+  const sales=os.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0);
+  const cash=paid.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0);
+  const due=unpaid.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0);
+  const exp=es.reduce((s,e)=>s+num(e.NOMINAL),0);
+  $("totalSales").textContent=rupiah(sales);
+  $("totalPaid").textContent=rupiah(cash);
+  $("totalUnpaid").textContent=rupiah(due);
+  $("totalExpense").textContent=rupiah(exp);
+  $("netBalance").textContent=rupiah(cash-exp);
+  const methods={CASH:0,QRIS:0,TRANSFER:0};
+  paid.forEach(o=>{const m=String(o.METODE_TRANSAKSI||"").toUpperCase();if(methods[m]!==undefined)methods[m]+=num(o.TOTAL_TAGIHAN)});
+  $("cashTotal").textContent=rupiah(methods.CASH);
+  $("qrisTotal").textContent=rupiah(methods.QRIS);
+  $("transferTotal").textContent=rupiah(methods.TRANSFER);
+  $("salesCount").textContent=os.length+" transaksi";
+  $("expenseCount").textContent=es.length+" transaksi";
+  $("unpaidCount").textContent=unpaid.length+" order";
+  $("salesBody").innerHTML=os.length?os.map(o=>{
+    const p=String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS";
+    const m=String(o.METODE_TRANSAKSI||"BELUM LUNAS").toUpperCase();
+    return "<tr><td>"+formatDate(o.START)+"</td><td><strong>#"+esc(o.ORDER_ID)+"</strong></td><td>"+esc(o.NAMA)+"</td><td>"+esc(o.PAKET||"-")+"</td><td><span class='badge "+m.toLowerCase().replace(/\s/g,"-")+"'>"+esc(m)+"</span></td><td><span class='badge "+(p?"paid":"unpaid")+"'>"+(p?"LUNAS":"BELUM LUNAS")+"</span></td><td class='amount'>"+rupiah(o.TOTAL_TAGIHAN)+"</td></tr>";
+  }).join(""):"<tr><td colspan='7' class='empty'>Tidak ada transaksi pada filter ini.</td></tr>";
+  $("unpaidBody").innerHTML=unpaid.length?unpaid.map(o=>"<tr><td><strong>#"+esc(o.ORDER_ID)+"</strong></td><td>"+esc(o.NAMA)+"</td><td class='amount'>"+rupiah(o.TOTAL_TAGIHAN)+"</td><td><button class='btn small primary' onclick=\"openPayment('"+esc(o.ORDER_ID)+"')\">Lunasi</button></td></tr>").join(""):"<tr><td colspan='4' class='empty'>Tidak ada piutang pada filter ini.</td></tr>";
+  renderExpenseLedger();
+}
+async function openPayment(id){
+  const method=prompt("Pelunasan order #"+id+"\n\nKetik metode pembayaran:\nCASH / QRIS / TRANSFER","CASH");
+  if(method===null)return;
+  const m=method.trim().toUpperCase();
+  if(!["CASH","QRIS","TRANSFER"].includes(m)){toast("Metode harus CASH, QRIS, atau TRANSFER");return}
+  try{await api("payment_update",{ORDER_ID:id,METODE_TRANSAKSI:m});toast("Order #"+id+" berhasil dilunasi");await loadData()}
+  catch(e){console.error(e);error("Gagal melunasi order: "+e.message)}
+}
+let ledgerDrafts=[{id:Date.now(),TANGGAL:new Date().toISOString().slice(0,10),KETERANGAN:"",NOMINAL:"",METODE_TRANSAKSI:"CASH"}];
+function renderLedgerDrafts(){
+  const el=$("ledgerDrafts");if(!el)return;
+  if(!ledgerDrafts.length){el.innerHTML="";return}
+  let rows="";
+  ledgerDrafts.forEach(d=>{
+    rows+="<tr class='draft-row' data-draft-id='"+d.id+"'>"+
+      "<td class='date-cell'><input class='ledger-input' type='date' data-field='TANGGAL' value='"+esc(d.TANGGAL)+"'></td>"+
+      "<td class='note-cell'><input class='ledger-input' type='text' data-field='KETERANGAN' value='"+esc(d.KETERANGAN)+"' placeholder='Keterangan pengeluaran'></td>"+
+      "<td class='amount-cell'><input class='ledger-input amount-input' type='number' min='1' step='1' data-field='NOMINAL' value='"+esc(d.NOMINAL)+"' placeholder='0'></td>"+
+      "<td class='method-cell'><select class='ledger-input' data-field='METODE_TRANSAKSI'><option value='CASH'"+(d.METODE_TRANSAKSI==="CASH"?" selected":"")+">CASH</option><option value='QRIS'"+(d.METODE_TRANSAKSI==="QRIS"?" selected":"")+">QRIS</option><option value='TRANSFER'"+(d.METODE_TRANSAKSI==="TRANSFER"?" selected":"")+">TRANSFER</option></select></td>"+
+      "<td class='action-cell'><button type='button' class='remove-row' data-remove-draft='"+d.id+"' title='Hapus baris'>×</button></td></tr>";
+  });
+  el.innerHTML="<table class='ledger'><thead><tr><th>Tgl.</th><th>Keterangan</th><th>Nominal</th><th>Metode</th><th>Aksi</th></tr></thead><tbody>"+rows+"</tbody></table>";
+}
+function addLedgerRow(){
   const last=ledgerDrafts[ledgerDrafts.length-1];
-  ledgerDrafts.push({id:Date.now()+Math.random(),TANGGAL:copyDate&&last&&last.TANGGAL?last.TANGGAL:new Date().toISOString().slice(0,10),KETERANGAN:"",NOMINAL:"",METODE_TRANSAKSI:last&&last.METODE_TRANSAKSI||"CASH"});
+  ledgerDrafts.push({id:Date.now()+Math.random(),TANGGAL:last&&last.TANGGAL?last.TANGGAL:new Date().toISOString().slice(0,10),KETERANGAN:"",NOMINAL:"",METODE_TRANSAKSI:last&&last.METODE_TRANSAKSI?last.METODE_TRANSAKSI:"CASH"});
   renderLedgerDrafts();
   setTimeout(()=>{const rows=document.querySelectorAll("#ledgerDrafts [data-field='KETERANGAN']");if(rows.length)rows[rows.length-1].focus()},0);
 }
-
 function renderExpenseLedger(){
   const es=state.filteredExpenses.slice().sort((a,b)=>String(a.TANGGAL||"").localeCompare(String(b.TANGGAL||""))||String(a.EXPENSE_ID||"").localeCompare(String(b.EXPENSE_ID||""));
   $("expenseCount").textContent=es.length+" transaksi";
   $("ledgerPeriodTotal").textContent=rupiah(es.reduce((sum,e)=>sum+num(e.NOMINAL),0));
-  if(!es.length){$("expenseBody").innerHTML='<tr><td colspan="5" class="ledger-empty">Belum ada pengeluaran pada periode ini.</td></tr>';return;}
+  if(!es.length){$("expenseBody").innerHTML="<tr><td colspan='5' class='ledger-empty'>Belum ada pengeluaran pada periode ini.</td></tr>";return}
   const groups={};
   es.forEach(e=>{const d=dateOnly(e.TANGGAL)||"UNKNOWN";if(!groups[d])groups[d]=[];groups[d].push(e)});
   let html="";
   Object.entries(groups).forEach(([d,rows])=>{
     const total=rows.reduce((sum,e)=>sum+num(e.NOMINAL),0);
-    html+='<tr class="ledger-day"><td colspan="2">'+(d==="UNKNOWN"?"Tanggal tidak diketahui":formatDate(d))+'</td><td colspan="2" class="day-total">Total '+rupiah(total)+'</td><td></td></tr>';
+    html+="<tr class='ledger-day'><td colspan='2'>"+(d==="UNKNOWN"?"Tanggal tidak diketahui":formatDate(d))+"</td><td colspan='2' class='day-total'>Total "+rupiah(total)+"</td><td></td></tr>";
     rows.forEach(e=>{
       const method=String(e.METODE_TRANSAKSI||"CASH");
-      html+='<tr><td class="date-cell">'+formatDate(e.TANGGAL)+'</td><td class="note-cell">'+esc(e.KETERANGAN||"-")+'</td><td class="amount-cell">'+rupiah(e.NOMINAL)+'</td><td class="method-cell"><span class="badge '+method.toLowerCase()+'">'+esc(method)+'</span></td><td class="action-cell">—</td></tr>';
+      html+="<tr><td class='date-cell'>"+formatDate(e.TANGGAL)+"</td><td class='note-cell'>"+esc(e.KETERANGAN||"-")+"</td><td class='amount-cell'>"+rupiah(e.NOMINAL)+"</td><td class='method-cell'><span class='badge "+method.toLowerCase()+"'>"+esc(method)+"</span></td><td class='action-cell'>—</td></tr>";
     });
   });
   $("expenseBody").innerHTML=html;
 }
-
 async function saveLedger(){
   const valid=ledgerDrafts.filter(d=>String(d.KETERANGAN||"").trim()||String(d.NOMINAL||"").trim());
-  if(!valid.length){toast("Belum ada transaksi untuk disimpan");return;}
+  if(!valid.length){toast("Belum ada transaksi untuk disimpan");return}
   const invalid=valid.find(d=>!d.TANGGAL||!d.NOMINAL||num(d.NOMINAL)<=0);
-  if(invalid){toast("Setiap baris wajib punya tanggal dan nominal");return;}
+  if(invalid){toast("Setiap baris wajib punya tanggal dan nominal");return}
   const btn=$("btnSaveLedger");btn.disabled=true;btn.textContent="Menyimpan...";
   try{
-    for(const d of valid) await api("expense_create",{TANGGAL:d.TANGGAL,KETERANGAN:String(d.KETERANGAN||"").trim(),NOMINAL:d.NOMINAL,METODE_TRANSAKSI:d.METODE_TRANSAKSI||"CASH"});
+    for(const d of valid)await api("expense_create",{TANGGAL:d.TANGGAL,KETERANGAN:String(d.KETERANGAN||"").trim(),NOMINAL:d.NOMINAL,METODE_TRANSAKSI:d.METODE_TRANSAKSI||"CASH"});
     ledgerDrafts=[{id:Date.now(),TANGGAL:valid[valid.length-1].TANGGAL,KETERANGAN:"",NOMINAL:"",METODE_TRANSAKSI:valid[valid.length-1].METODE_TRANSAKSI||"CASH"}];
     renderLedgerDrafts();toast(valid.length+" pengeluaran berhasil dicatat");await loadData();
   }catch(e){console.error(e);error("Sebagian pengeluaran mungkin belum tersimpan: "+e.message)}
   finally{btn.disabled=false;btn.textContent="Simpan Semua"}
 }
-
-function defaults(){const n=new Date(),f=new Date(n.getFullYear(),n.getMonth(),1);$("dateFrom").value=f.toISOString().slice(0,10);$("dateTo").value=n.toISOString().slice(0,10)}function reset(){$("dateFrom").value="";$("dateTo").value="";$("paymentFilter").value="ALL";applyFilters()}
-
-function filterLabel(){
-  const f=$("dateFrom").value,t=$("dateTo").value,p=$("paymentFilter").value;
-  const from=f?formatDate(f):"Awal data",to=t?formatDate(t):"Hari ini",pay=p==="ALL"?"Semua status":p;
-  return `${from} — ${to} · ${pay}`;
-}
+function defaults(){const n=new Date(),f=new Date(n.getFullYear(),n.getMonth(),1);$("dateFrom").value=f.toISOString().slice(0,10);$("dateTo").value=n.toISOString().slice(0,10)}
+function reset(){$("dateFrom").value="";$("dateTo").value="";$("paymentFilter").value="ALL";applyFilters()}
+function filterLabel(){const f=$("dateFrom").value,t=$("dateTo").value,p=$("paymentFilter").value;return(f?formatDate(f):"Awal data")+" — "+(t?formatDate(t):"Hari ini")+" · "+(p==="ALL"?"Semua status":p)}
 function buildPrintReport(){
   const os=state.filteredOrders,es=state.filteredExpenses;
   const paid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS");
@@ -244,57 +306,27 @@ function buildPrintReport(){
   const expense=es.reduce((s,e)=>s+num(e.NOMINAL),0);
   const methods={CASH:0,QRIS:0,TRANSFER:0};
   paid.forEach(o=>{const m=String(o.METODE_TRANSAKSI||"").toUpperCase();if(methods[m]!==undefined)methods[m]+=num(o.TOTAL_TAGIHAN)});
-  $("printMeta").innerHTML=`Periode: <strong>${esc(filterLabel())}</strong><br>Dicetak: ${esc(new Date().toLocaleString("id-ID"))}`;
-  $("printKpis").innerHTML=[
-    ["Total Penjualan",rupiah(sales)],["Sudah Dibayar",rupiah(totalPaid)],
-    ["Belum Lunas",rupiah(totalUnpaid)],["Pengeluaran",rupiah(expense)],["Saldo Bersih",rupiah(totalPaid-expense)]
-  ].map(x=>`<div class="print-kpi"><div class="k">${x[0]}</div><div class="v">${x[1]}</div></div>`).join("");
-  $("printMethods").innerHTML=`<td>${rupiah(methods.CASH)}</td><td>${rupiah(methods.QRIS)}</td><td>${rupiah(methods.TRANSFER)}</td>`;
-  $("printSalesBody").innerHTML=os.length?os.map(o=>{
-    const p=String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS";
-    const m=String(o.METODE_TRANSAKSI||"BELUM LUNAS").toUpperCase();
-    return `<tr><td>${formatDate(o.START)}</td><td>#${esc(o.ORDER_ID)}</td><td>${esc(o.NAMA)}</td><td>${esc(o.PAKET||"-")}</td><td>${esc(m)}</td><td>${p?"LUNAS":"BELUM LUNAS"}</td><td class="print-right">${rupiah(o.TOTAL_TAGIHAN)}</td></tr>`
-  }).join(""):`<tr><td colspan="7">Tidak ada transaksi pada filter ini.</td></tr>`;
-  $("printExpenseBody").innerHTML=es.length?es.map(e=>{
-    const m=String(e.METODE_TRANSAKSI||"CASH").toUpperCase();
-    return `<tr><td>${formatDate(e.TANGGAL)}</td><td>${esc(e.KETERANGAN||"-")}</td><td>${esc(m)}</td><td class="print-right">${rupiah(e.NOMINAL)}</td></tr>`
-  }).join(""):`<tr><td colspan="4">Belum ada pengeluaran pada filter ini.</td></tr>`;
-  $("printTimestamp").textContent=`Dicetak ${new Date().toLocaleString("id-ID")}`;
+  $("printMeta").innerHTML="Periode: <strong>"+esc(filterLabel())+"</strong><br>Dicetak: "+esc(new Date().toLocaleString("id-ID"));
+  $("printKpis").innerHTML=[["Total Penjualan",rupiah(sales)],["Sudah Dibayar",rupiah(totalPaid)],["Belum Lunas",rupiah(totalUnpaid)],["Pengeluaran",rupiah(expense)],["Saldo Bersih",rupiah(totalPaid-expense)]].map(x=>"<div class='print-kpi'><div class='k'>"+x[0]+"</div><div class='v'>"+x[1]+"</div></div>").join("");
+  $("printMethods").innerHTML="<td>"+rupiah(methods.CASH)+"</td><td>"+rupiah(methods.QRIS)+"</td><td>"+rupiah(methods.TRANSFER)+"</td>";
+  $("printSalesBody").innerHTML=os.length?os.map(o=>{const p=String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS",m=String(o.METODE_TRANSAKSI||"BELUM LUNAS").toUpperCase();return"<tr><td>"+formatDate(o.START)+"</td><td>#"+esc(o.ORDER_ID)+"</td><td>"+esc(o.NAMA)+"</td><td>"+esc(o.PAKET||"-")+"</td><td>"+esc(m)+"</td><td>"+(p?"LUNAS":"BELUM LUNAS")+"</td><td class='print-right'>"+rupiah(o.TOTAL_TAGIHAN)+"</td></tr>"}).join(""):"<tr><td colspan='7'>Tidak ada transaksi pada filter ini.</td></tr>";
+  $("printExpenseBody").innerHTML=es.length?es.map(e=>"<tr><td>"+formatDate(e.TANGGAL)+"</td><td>"+esc(e.KETERANGAN||"-")+"</td><td>"+esc(String(e.METODE_TRANSAKSI||"CASH").toUpperCase())+"</td><td class='print-right'>"+rupiah(e.NOMINAL)+"</td></tr>").join(""):"<tr><td colspan='4'>Belum ada pengeluaran pada filter ini.</td></tr>";
+  $("printTimestamp").textContent="Dicetak "+new Date().toLocaleString("id-ID");
 }
-function printFinance(){
-  buildPrintReport();
-  window.print();
-}
+function printFinance(){buildPrintReport();window.print()}
 document.addEventListener("DOMContentLoaded",()=>{
-  defaults();
-  renderLedgerDrafts();
+  defaults();renderLedgerDrafts();
   $("btnPrint").addEventListener("click",printFinance);
   $("btnRefresh").addEventListener("click",loadData);
   $("btnApply").addEventListener("click",applyFilters);
   $("btnReset").addEventListener("click",reset);
-  $("btnAddLedgerRow").addEventListener("click",()=>addLedgerRow());
-  $("btnAddLedgerRowInline").addEventListener("click",()=>addLedgerRow());
+  $("btnAddLedgerRow").addEventListener("click",addLedgerRow);
+  $("btnAddLedgerRowInline").addEventListener("click",addLedgerRow);
   $("btnSaveLedger").addEventListener("click",saveLedger);
-  $("ledgerDrafts").addEventListener("input",e=>{
-    const row=e.target.closest("[data-draft-id]"); if(!row)return;
-    const d=ledgerDrafts.find(x=>String(x.id)===String(row.dataset.draftId)); if(!d)return;
-    const field=e.target.dataset.field; if(field)d[field]=e.target.value;
-  });
-  $("ledgerDrafts").addEventListener("change",e=>{
-    const row=e.target.closest("[data-draft-id]"); if(!row)return;
-    const d=ledgerDrafts.find(x=>String(x.id)===String(row.dataset.draftId)); if(!d)return;
-    const field=e.target.dataset.field; if(field)d[field]=e.target.value;
-  });
-  $("ledgerDrafts").addEventListener("click",e=>{
-    const id=e.target.dataset.removeDraft; if(!id)return;
-    ledgerDrafts=ledgerDrafts.filter(x=>String(x.id)!==String(id));
-    renderLedgerDrafts();
-  });
-  $("ledgerDrafts").addEventListener("keydown",e=>{
-    if(e.key==="Enter" && e.target.dataset.field==="NOMINAL"){
-      e.preventDefault(); addLedgerRow();
-    }
-  });
+  $("ledgerDrafts").addEventListener("input",e=>{const row=e.target.closest("[data-draft-id]");if(!row)return;const d=ledgerDrafts.find(x=>String(x.id)===String(row.dataset.draftId));if(!d)return;const field=e.target.dataset.field;if(field)d[field]=e.target.value});
+  $("ledgerDrafts").addEventListener("change",e=>{const row=e.target.closest("[data-draft-id]");if(!row)return;const d=ledgerDrafts.find(x=>String(x.id)===String(row.dataset.draftId));if(!d)return;const field=e.target.dataset.field;if(field)d[field]=e.target.value});
+  $("ledgerDrafts").addEventListener("click",e=>{const id=e.target.dataset.removeDraft;if(!id)return;ledgerDrafts=ledgerDrafts.filter(x=>String(x.id)!==String(id));renderLedgerDrafts()});
+  $("ledgerDrafts").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.field==="NOMINAL"){e.preventDefault();addLedgerRow()}});
   loadData();
 });
 </script>
