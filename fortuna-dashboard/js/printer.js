@@ -99,57 +99,162 @@ async function ensurePrinter(){
   return false;
 }
 
-async function logoToEscPos(){const img=new Image();img.src=FORTUNA_LOGO_PNG;await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject});const maxWidth=320;const ratio=Math.min(1,maxWidth/img.naturalWidth);const w=Math.max(8,Math.round(img.naturalWidth*ratio));const h=Math.max(8,Math.round(img.naturalHeight*ratio));const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);const data=ctx.getImageData(0,0,w,h).data;const rowBytes=Math.ceil(w/8);const bitmap=new Uint8Array(8+rowBytes*h);bitmap[0]=0x1d;bitmap[1]=0x76;bitmap[2]=0x30;bitmap[3]=0x00;bitmap[4]=rowBytes&0xff;bitmap[5]=(rowBytes>>8)&0xff;bitmap[6]=h&0xff;bitmap[7]=(h>>8)&0xff;for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;const gray=data[i]*.299+data[i+1]*.587+data[i+2]*.114;if(gray<180)bitmap[8+y*rowBytes+(x>>3)]|=0x80>>(x&7)}const out=new Uint8Array(5+bitmap.length+3);out.set([0x1b,0x40,0x1b,0x61,0x01],0);out.set(bitmap,5);out.set([0x1b,0x61,0x00,0x1b,0x45,0x00],5+bitmap.length);return out}
+async function logoToEscPos(){
+  const img=new Image();
+  img.src=FORTUNA_LOGO_PNG;
+  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject});
 
-function receiptTextLine(left,right,width=32){left=String(left??'');right=String(right??'');const gap=Math.max(1,width-left.length-right.length);return left+' '.repeat(gap)+right+'\n'}
+  // Thermal-safe bitmap: ESC * 24-dot double-density mode.
+  // Use the exact same embedded logo as the HTML preview.
+  const maxWidth=180;
+  const ratio=Math.min(1,maxWidth/img.naturalWidth);
+  const w=Math.max(8,Math.floor(img.naturalWidth*ratio/8)*8);
+  const h=Math.max(8,Math.round(img.naturalHeight*(w/img.naturalWidth)));
 
-function wrapReceipt(text,width=32){const words=String(text??'').split(/\s+/);const out=[];let line='';for(const word of words){if((line?line.length+1:0)+word.length<=width)line+=(line?' ':'')+word;else{if(line)out.push(line);line=word.slice(0,width)}}if(line)out.push(line);return out}
+  const canvas=document.createElement('canvas');
+  canvas.width=w;
+  canvas.height=h;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  ctx.fillStyle='#fff';
+  ctx.fillRect(0,0,w,h);
+  ctx.drawImage(img,0,0,w,h);
 
-async function printReceipt(o){
+  const data=ctx.getImageData(0,0,w,h).data;
+  const bytes=[];
+  const rowBytes=Math.ceil(w/8);
+
+  // Center the bitmap without relying on ESC a 0, because some printers
+  // incorrectly render the alignment parameter as a visible "0".
+  const charWidthDots=8;
+  const leftSpaces=Math.max(0,Math.floor((32-Math.ceil(w/charWidthDots))/2));
+
+  bytes.push(0x1b,0x40);
+  bytes.push(0x1b,0x61,0x00);
+
+  for(let band=0;band<h;band+=24){
+    bytes.push(...new TextEncoder().encode(' '.repeat(leftSpaces)));
+
+    // ESC * m=33: 24-dot, double-density vertical bit image.
+    bytes.push(0x1b,0x2a,0x21,w&0xff,(w>>8)&0xff);
+
+    for(let x=0;x<w;x++){
+      for(let slice=0;slice<3;slice++){
+        let bits=0;
+        for(let bit=0;bit<8;bit++){
+          const y=band+slice*8+bit;
+          if(y>=h)continue;
+          const i=(y*w+x)*4;
+          const gray=data[i]*0.299+data[i+1]*0.587+data[i+2]*0.114;
+          if(gray<170)bits|=(0x80>>bit);
+        }
+        bytes.push(bits);
+      }
+    }
+    bytes.push(0x0a);
+  }
+
+  bytes.push(0x0a);
+  return new Uint8Array(bytes);
+}
+
+function receiptTextLine(left,right,width=32){
+  left=String(left??'');
+  right=String(right??'');
+  const gap=Math.max(1,width-left.length-right.length);
+  return left+' '.repeat(gap)+right+'\n';
+}
+
+function centerReceipt(text,width=32){
+  const s=String(text??'');
+  if(!s)return '\n';
+  const left=Math.max(0,Math.floor((width-s.length)/2));
+  return ' '.repeat(left)+s+'\n';
+}
+
+function wrapReceipt(text,width=32){
+  const words=String(text??'').split(/\s+/);
+  const out=[];
+  let line='';
+  for(const word of words){
+    if((line?line.length+1:0)+word.length<=width)line+=(line?' ':'')+word;
+    else{
+      if(line)out.push(line);
+      line=word.slice(0,width);
+    }
+  }
+  if(line)out.push(line);
+  return out;
+}
+
+function parseReceiptAmount(value){
+  const raw=String(value??'').trim();
+  if(!raw)return 0;
+  // Preview's rupiah parser treats dots/commas and currency text as formatting.
+  const normalized=raw.replace(/[^0-9-]/g,'');
+  return Number(normalized)||0;
+}\nasync function printReceipt(o){
   // SETIAP aksi cetak wajib memastikan printer benar-benar tersambung.
-  // Jika koneksi hilang/tidak ada, minta operator menghubungkan thermal printer lagi.
   let ready=await ensurePrinter();
   if(!ready){
     ready=await connectPrinter();
     if(!ready) throw new Error('Thermal printer belum terhubung. Hubungkan printer lalu coba cetak lagi.');
   }
+
   const enc=new TextEncoder();
   const bytes=[];
   const push=s=>bytes.push(...enc.encode(s));
-  const nl='\n';
-  try{ bytes.push(...await logoToEscPos()); }
-  catch(e){ push('\x1B\x40\x1B\x61\x01'); }
+
+  try{
+    bytes.push(...await logoToEscPos());
+  }catch(e){
+    // Logo gagal dikonversi: tetap cetak struk, jangan menggagalkan transaksi.
+    push('\\x1B\\x40');
+  }
 
   const dt=new Date(o.START ? String(o.START).replace(' ','T') : Date.now());
-  const date=isNaN(dt.getTime()) ? new Date().toLocaleString('id-ID') : dt.toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const date=isNaN(dt.getTime())
+    ? new Date().toLocaleString('id-ID')
+    : dt.toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
   const items=Array.isArray(o.items)?o.items:[];
-  const total=items.reduce((s,x)=>s+(Number(x.TAGIHAN)||0),0);
+  const total=items.reduce((s,x)=>s+parseReceiptAmount(x.TAGIHAN),0);
 
-  push('FORTUNA LAUNDRY'+nl);
-  push('Jalan Raya Inpres no 4'+nl);
-  push('Jakarta Timur'+nl);
-  push('085693280500'+nl+nl);
-  push(receiptTextLine(date,'#'+o.ORDER_ID));
-  push('\x1B\x45\x01'+String(o.NAMA||'-').toUpperCase()+'\x1B\x45\x00'+nl);
-  push('--------------------------------'+nl);
+  // Header — same hierarchy/order as Preview.
+  push(centerReceipt('FORTUNA LAUNDRY'));
+  push(centerReceipt('Jalan Raya Inpres no 4'));
+  push(centerReceipt('Jakarta Timur'));
+  push(centerReceipt('085693280500'));
+  push('\\n');
 
+  push(receiptTextLine(date,'#'+String(o.ORDER_ID||'PREVIEW')));
+  push('\\x1B\\x45\\x01'+String(o.NAMA||'-').toUpperCase()+'\\x1B\\x45\\x00\\n');
+  push('--------------------------------\\n');
+
+  // Each item follows Preview: package name first, then weight + price on one row.
   items.forEach((x,i)=>{
-    const lines=wrapReceipt((i+1)+'. '+String(x.PAKET||'-').toUpperCase(),32);
-    push('\x1B\x45\x01'+lines[0]+'\x1B\x45\x00'+nl);
-    for(let j=1;j<lines.length;j++)push('  '+lines[j]+nl);
-    push(receiptTextLine(String(x.BERAT||0)+'Kg',rupiah(x.TAGIHAN)));
+    const nameLines=wrapReceipt((i+1)+'. '+String(x.PAKET||'-'),32);
+    nameLines.forEach((line,j)=>{
+      push('\\x1B\\x45\\x01'+line+'\\x1B\\x45\\x00\\n');
+    });
+    push(receiptTextLine(String(x.BERAT||'0')+'Kg',rupiah(parseReceiptAmount(x.TAGIHAN))));
   });
 
-  push('--------------------------------'+nl);
-  push(receiptTextLine('TOTAL',rupiah(total)));
+  push('--------------------------------\\n');
+  push(receiptTextLine('Total',rupiah(total)));
+
   const paymentStatus=String(o.STATUS_PEMBAYARAN||'BELUM LUNAS').toUpperCase();
   const paymentMethod=String(o.METODE_TRANSAKSI||'BELUM LUNAS').toUpperCase();
-  // Match the HTML preview: status is right-aligned and the method is hidden
-  // when it is the default "BELUM LUNAS" value.
-  push('\x1B\x61\x02'+paymentStatus+'\x1B\x61\x00'+nl);
-  if(paymentMethod!=='BELUM LUNAS') push('\x1B\x61\x02Metode: '+paymentMethod+'\x1B\x61\x00'+nl);
-  push('\x1B\x61\x01-- PEMBAYARAN HARAP MENGGUNAKAN QRIS --\x1B\x61\x00\n');
-  push('\x1B\x61\x01\x1B\x45\x01PERHATIAN\x1B\x45\x00\n');
+
+  // Preview places payment status on the right and only shows the method when non-default.
+  push(receiptTextLine('',paymentStatus));
+  if(paymentMethod!=='BELUM LUNAS')push(receiptTextLine('',''+paymentMethod));
+
+  // Use spaces, not ESC a 0, to avoid printers that render the 0 parameter as a visible glyph.
+  const qris='-- PEMBAYARAN HARAP MENGGUNAKAN QRIS --';
+  wrapReceipt(qris,32).forEach(line=>push(centerReceipt(line)));
+
+  push(centerReceipt('PERHATIAN'));
+
   const notes=[
     'Baju putih dicuci terpisah minimal 3 kg.',
     'Kami tidak menerima komplain lebih dari 2x24jam setelah customer menerima Laundry.',
@@ -159,29 +264,39 @@ async function printReceipt(o){
     'Laundry yang lebih dari 10 hari tidak diambil bukan menjadi tanggung jawab kami.',
     'Laundry anda GRATIS apabila tidak mendapatkan nota.'
   ];
-  // Preview centers the notes and footer; mirror that on the thermal printer.
-  notes.forEach((n,idx)=>{
-    wrapReceipt(n,30).forEach((line,j)=>{
-      push('\x1B\x61\x01'+(j===0?'- ':'  ')+line+'\x1B\x61\x00\n');
-    });
-    if(idx===2)push('\n');
-  });
-  push('\x1B\x61\x01\nKritik dan saran\n085693280500\n\n#Terimakasih Kasih#\n\n\n\n\x1B\x61\x00');
-  push('\x1D\x56\x00');
 
-  const payload=new Uint8Array(bytes.length);payload.set(bytes);
+  notes.forEach((n,idx)=>{
+    wrapReceipt('- '+n,32).forEach(line=>push(centerReceipt(line)));
+    if(idx<notes.length-1)push('\\n');
+  });
+
+  push('\\n');
+  push(centerReceipt('Kritik dan saran'));
+  push(centerReceipt('085693280500'));
+  push('\\n');
+  push(centerReceipt('#Terimakasih Kasih#'));
+  push('\\n\\n');
+
+  // Explicit reset only at the very end; no alignment parameter bytes are sent.
+  push('\\x1D\\x56\\x00');
+
+  const payload=new Uint8Array(bytes.length);
+  payload.set(bytes);
   const chunk=180;
+
   try{
     for(let i=0;i<payload.length;i+=chunk){
-      if(!printer?.gatt?.connected||!printerCharacteristic) throw new Error('Koneksi thermal printer terputus.');
+      if(!printer?.gatt?.connected||!printerCharacteristic)throw new Error('Koneksi thermal printer terputus.');
       const part=payload.slice(i,i+chunk);
-      if(printerCharacteristic.writeValueWithoutResponse) await printerCharacteristic.writeValueWithoutResponse(part);
+      if(printerCharacteristic.writeValueWithoutResponse)await printerCharacteristic.writeValueWithoutResponse(part);
       else await printerCharacteristic.writeValue(part);
       await new Promise(r=>setTimeout(r,20));
     }
     return true;
   }catch(err){
-    printer=null;printerCharacteristic=null;onPrinterDisconnected();
+    printer=null;
+    printerCharacteristic=null;
+    onPrinterDisconnected();
     throw new Error('Cetak gagal karena koneksi printer terputus. Hubungkan kembali thermal printer lalu cetak ulang.');
   }
 }
