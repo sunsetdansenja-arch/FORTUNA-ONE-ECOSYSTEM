@@ -113,6 +113,9 @@ button,input,select{font:inherit}button{cursor:pointer}
 .ledger-input{width:100%;height:38px;border:1px solid #d8dee8;border-radius:9px;padding:0 10px;background:#fff;outline:none}
 .ledger-input:focus{border-color:#94a3b8;box-shadow:0 0 0 3px rgba(37,99,235,.08)}
 .ledger-input.amount-input{text-align:right}
+.ledger-stack{display:flex;flex-direction:column;gap:6px}
+.ledger-stack .ledger-input{min-width:120px}
+.ledger-stack .ledger-category{font-size:11px;font-weight:800}
 .draft-row{background:#fffdf5}
 .draft-row td{border-bottom:1px solid #ece6cf}
 .remove-row{border:0;background:#fef2f2;color:#b42318;border-radius:8px;width:32px;height:32px;font-weight:900}
@@ -335,7 +338,7 @@ function renderLedgerDrafts(){
       "<td class='method-cell'><select class='ledger-input' data-field='METODE_TRANSAKSI'><option value='CASH'"+(d.METODE_TRANSAKSI==="CASH"?" selected":"")+">CASH</option><option value='QRIS'"+(d.METODE_TRANSAKSI==="QRIS"?" selected":"")+">QRIS</option><option value='TRANSFER'"+(d.METODE_TRANSAKSI==="TRANSFER"?" selected":"")+">TRANSFER</option></select></td>"+
       "<td class='action-cell'><button type='button' class='remove-row' data-remove-draft='"+d.id+"' title='Hapus baris'>×</button></td></tr>";
   });
-  el.innerHTML="<table class='ledger'><thead><tr><th>Tgl.</th><th>Keterangan</th><th>Nominal</th><th>Metode</th><th>Aksi</th></tr></thead><tbody>"+rows+"</tbody></table>";
+  el.innerHTML="<table class='ledger'><thead><tr><th>Tgl.</th><th>Keterangan</th><th>Nominal</th><th>Metode Transaksi / Debit-Kredit</th><th>Aksi</th></tr></thead><tbody>"+rows+"</tbody></table>";
 }
 function addLedgerRow(){
   const last=ledgerDrafts[ledgerDrafts.length-1];
@@ -370,7 +373,7 @@ function renderExpenseLedger(){
     rows.forEach(function(e){
       var method=String(e.METODE_TRANSAKSI||"CASH");
       var category=String(e.KATEGORI||"LAINNYA").toUpperCase();
-      html+="<tr><td class='date-cell'>"+formatDate(e.TANGGAL)+"</td><td class='note-cell'>"+esc(e.KETERANGAN||"-")+"</td><td class='amount-cell'>"+rupiah(e.NOMINAL)+"</td><td class='method-cell'><span class='badge "+method.toLowerCase()+"'>"+esc(method)+"</span></td><td class='action-cell'>—</td></tr>";
+      html+="<tr><td class='date-cell'>"+formatDate(e.TANGGAL)+"</td><td class='note-cell'>"+esc(e.KETERANGAN||"-")+"</td><td class='amount-cell'>"+rupiah(e.NOMINAL)+"</td><td class='method-cell'><div class='ledger-stack'><span class='badge "+method.toLowerCase()+"'>"+esc(method)+"</span><span class='badge cash'>"+esc(category)+"</span></div></td><td class='action-cell'>—</td></tr>";
     });
   });
   $("expenseBody").innerHTML=html;
@@ -379,7 +382,7 @@ async function saveLedger(){
   const valid=ledgerDrafts.filter(d=>String(d.KETERANGAN||"").trim()||String(d.NOMINAL||"").trim());
   if(!valid.length){toast("Belum ada transaksi untuk disimpan");return}
   const invalid=valid.find(d=>!d.TANGGAL||!d.NOMINAL||num(d.NOMINAL)<=0||!["DEBIT","KREDIT"].includes(String(d.KATEGORI||"").toUpperCase()));
-  if(invalid){toast("Setiap baris wajib punya tanggal dan nominal");return}
+  if(invalid){toast("Setiap baris wajib punya tanggal, nominal, dan Debit/Kredit");return}
   const btn=$("btnSaveLedger");btn.disabled=true;btn.textContent="Menyimpan...";
   try{
     for(const d of valid)await api("expense_create",{TANGGAL:d.TANGGAL,KATEGORI:String(d.KATEGORI||"DEBIT").toUpperCase(),KETERANGAN:String(d.KETERANGAN||"").trim(),NOMINAL:d.NOMINAL,METODE_TRANSAKSI:d.METODE_TRANSAKSI||"CASH"});
