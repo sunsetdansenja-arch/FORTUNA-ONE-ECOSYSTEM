@@ -104,75 +104,71 @@ async function logoToEscPos(){
   img.src=FORTUNA_LOGO_PNG;
   await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject});
 
-  // Thermal-safe bitmap: ESC * 24-dot double-density mode.
-  // Use the exact same embedded logo as the HTML preview.
-  const maxWidth=180;
-  const ratio=Math.min(1,maxWidth/img.naturalWidth);
-  const w=Math.max(8,Math.floor(img.naturalWidth*ratio/8)*8);
-  const h=Math.max(8,Math.round(img.naturalHeight*(w/img.naturalWidth)));
+  // Use the printer's common GS v 0 raster mode.
+  // Build a full 58mm/384-dot canvas so the logo is centered in pixels,
+  // without ESC a commands (some printers print the alignment parameter).
+  const printerWidth=384;
+  const maxLogoWidth=220;
+  const ratio=Math.min(1,maxLogoWidth/img.naturalWidth);
+  const logoW=Math.max(8,Math.floor(img.naturalWidth*ratio/8)*8);
+  const logoH=Math.max(8,Math.round(img.naturalHeight*(logoW/img.naturalWidth)));
 
   const canvas=document.createElement('canvas');
-  canvas.width=w;
-  canvas.height=h;
+  canvas.width=printerWidth;
+  canvas.height=logoH;
   const ctx=canvas.getContext('2d',{willReadFrequently:true});
   ctx.fillStyle='#fff';
-  ctx.fillRect(0,0,w,h);
-  ctx.drawImage(img,0,0,w,h);
+  ctx.fillRect(0,0,printerWidth,logoH);
+  const left=Math.floor((printerWidth-logoW)/2);
+  ctx.drawImage(img,left,0,logoW,logoH);
 
-  const data=ctx.getImageData(0,0,w,h).data;
-  const bytes=[];
-  const rowBytes=Math.ceil(w/8);
+  const data=ctx.getImageData(0,0,printerWidth,logoH).data;
+  const rowBytes=printerWidth>>3;
+  const bitmap=new Uint8Array(8+rowBytes*logoH);
 
-  // Center the bitmap without relying on ESC a 0, because some printers
-  // incorrectly render the alignment parameter as a visible "0".
-  const charWidthDots=8;
-  const leftSpaces=Math.max(0,Math.floor((32-Math.ceil(w/charWidthDots))/2));
+  // GS v 0 — raster bit image.
+  bitmap[0]=0x1d;
+  bitmap[1]=0x76;
+  bitmap[2]=0x30;
+  bitmap[3]=0x00;
+  bitmap[4]=rowBytes&0xff;
+  bitmap[5]=(rowBytes>>8)&0xff;
+  bitmap[6]=logoH&0xff;
+  bitmap[7]=(logoH>>8)&0xff;
 
-  bytes.push(0x1b,0x40);
-  bytes.push(0x1b,0x61,0x00);
-
-  for(let band=0;band<h;band+=24){
-    bytes.push(...new TextEncoder().encode(' '.repeat(leftSpaces)));
-
-    // ESC * m=33: 24-dot, double-density vertical bit image.
-    bytes.push(0x1b,0x2a,0x21,w&0xff,(w>>8)&0xff);
-
-    for(let x=0;x<w;x++){
-      for(let slice=0;slice<3;slice++){
-        let bits=0;
-        for(let bit=0;bit<8;bit++){
-          const y=band+slice*8+bit;
-          if(y>=h)continue;
-          const i=(y*w+x)*4;
-          const gray=data[i]*0.299+data[i+1]*0.587+data[i+2]*0.114;
-          if(gray<170)bits|=(0x80>>bit);
-        }
-        bytes.push(bits);
+  for(let y=0;y<logoH;y++){
+    for(let x=0;x<printerWidth;x++){
+      const i=(y*printerWidth+x)*4;
+      const alpha=data[i+3];
+      const gray=data[i]*.299+data[i+1]*.587+data[i+2]*.114;
+      if(alpha>20 && gray<180){
+        bitmap[8+y*rowBytes+(x>>3)]|=0x80>>(x&7);
       }
     }
-    bytes.push(0x0a);
   }
 
-  bytes.push(0x0a);
-  return new Uint8Array(bytes);
+  const out=new Uint8Array(bitmap.length+1);
+  out.set(bitmap,0);
+  out[out.length-1]=0x0a;
+  return out;
 }
 
 function receiptTextLine(left,right,width=32){
   left=String(left??'');
   right=String(right??'');
   const gap=Math.max(1,width-left.length-right.length);
-  return left+' '.repeat(gap)+right+'\n';
+  return left+' '.repeat(gap)+right+'\\n';
 }
 
 function centerReceipt(text,width=32){
   const s=String(text??'');
-  if(!s)return '\n';
+  if(!s)return '\\n';
   const left=Math.max(0,Math.floor((width-s.length)/2));
-  return ' '.repeat(left)+s+'\n';
+  return ' '.repeat(left)+s+'\\n';
 }
 
 function wrapReceipt(text,width=32){
-  const words=String(text??'').split(/\s+/);
+  const words=String(text??'').split(/\\s+/);
   const out=[];
   let line='';
   for(const word of words){
@@ -189,11 +185,11 @@ function wrapReceipt(text,width=32){
 function parseReceiptAmount(value){
   const raw=String(value??'').trim();
   if(!raw)return 0;
-  // Preview's rupiah parser treats dots/commas and currency text as formatting.
   const normalized=raw.replace(/[^0-9-]/g,'');
   return Number(normalized)||0;
-}\nasync function printReceipt(o){
-  // SETIAP aksi cetak wajib memastikan printer benar-benar tersambung.
+}
+
+async function printReceipt(o){
   let ready=await ensurePrinter();
   if(!ready){
     ready=await connectPrinter();
@@ -202,13 +198,16 @@ function parseReceiptAmount(value){
 
   const enc=new TextEncoder();
   const bytes=[];
-  const push=s=>bytes.push(...enc.encode(s));
+  const push=s=>bytes.push(...enc.encode(String(s)));
+  const pushBytes=(...values)=>bytes.push(...values);
 
+  // Logo is the only bitmap/control section. Text below is plain ESC/POS
+  // compatible text so unsupported ESC alignment/bold commands cannot leak
+  // their parameter values (0/1) onto the receipt.
   try{
     bytes.push(...await logoToEscPos());
   }catch(e){
-    // Logo gagal dikonversi: tetap cetak struk, jangan menggagalkan transaksi.
-    push('\\x1B\\x40');
+    // If the bitmap fails, continue with the text receipt.
   }
 
   const dt=new Date(o.START ? String(o.START).replace(' ','T') : Date.now());
@@ -219,7 +218,7 @@ function parseReceiptAmount(value){
   const items=Array.isArray(o.items)?o.items:[];
   const total=items.reduce((s,x)=>s+parseReceiptAmount(x.TAGIHAN),0);
 
-  // Header — same hierarchy/order as Preview.
+  // Header follows Preview.
   push(centerReceipt('FORTUNA LAUNDRY'));
   push(centerReceipt('Jalan Raya Inpres no 4'));
   push(centerReceipt('Jakarta Timur'));
@@ -227,15 +226,11 @@ function parseReceiptAmount(value){
   push('\\n');
 
   push(receiptTextLine(date,'#'+String(o.ORDER_ID||'PREVIEW')));
-  push('\\x1B\\x45\\x01'+String(o.NAMA||'-').toUpperCase()+'\\x1B\\x45\\x00\\n');
+  push(String(o.NAMA||'-').toUpperCase()+'\\n');
   push('--------------------------------\\n');
 
-  // Each item follows Preview: package name first, then weight + price on one row.
   items.forEach((x,i)=>{
-    const nameLines=wrapReceipt((i+1)+'. '+String(x.PAKET||'-'),32);
-    nameLines.forEach((line,j)=>{
-      push('\\x1B\\x45\\x01'+line+'\\x1B\\x45\\x00\\n');
-    });
+    wrapReceipt((i+1)+'. '+String(x.PAKET||'-'),32).forEach(line=>push(line+'\\n'));
     push(receiptTextLine(String(x.BERAT||'0')+'Kg',rupiah(parseReceiptAmount(x.TAGIHAN))));
   });
 
@@ -245,13 +240,11 @@ function parseReceiptAmount(value){
   const paymentStatus=String(o.STATUS_PEMBAYARAN||'BELUM LUNAS').toUpperCase();
   const paymentMethod=String(o.METODE_TRANSAKSI||'BELUM LUNAS').toUpperCase();
 
-  // Preview places payment status on the right and only shows the method when non-default.
   push(receiptTextLine('',paymentStatus));
-  if(paymentMethod!=='BELUM LUNAS')push(receiptTextLine('',''+paymentMethod));
+  if(paymentMethod!=='BELUM LUNAS')push(receiptTextLine('Metode:',paymentMethod));
 
-  // Use spaces, not ESC a 0, to avoid printers that render the 0 parameter as a visible glyph.
-  const qris='-- PEMBAYARAN HARAP MENGGUNAKAN QRIS --';
-  wrapReceipt(qris,32).forEach(line=>push(centerReceipt(line)));
+  wrapReceipt('-- PEMBAYARAN HARAP MENGGUNAKAN QRIS --',32)
+    .forEach(line=>push(centerReceipt(line)));
 
   push(centerReceipt('PERHATIAN'));
 
@@ -277,8 +270,8 @@ function parseReceiptAmount(value){
   push(centerReceipt('#Terimakasih Kasih#'));
   push('\\n\\n');
 
-  // Explicit reset only at the very end; no alignment parameter bytes are sent.
-  push('\\x1D\\x56\\x00');
+  // Cut command only; no alignment/bold/reset commands.
+  pushBytes(0x1d,0x56,0x00);
 
   const payload=new Uint8Array(bytes.length);
   payload.set(bytes);
