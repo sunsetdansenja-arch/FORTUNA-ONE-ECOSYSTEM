@@ -334,11 +334,10 @@ function renderLedgerDrafts(){
       "<td class='date-cell'><input class='ledger-input' type='date' data-field='TANGGAL' value='"+esc(d.TANGGAL)+"'></td>"+
       "<td class='note-cell'><input class='ledger-input' type='text' data-field='KETERANGAN' value='"+esc(d.KETERANGAN)+"' placeholder='Keterangan pengeluaran'></td>"+
       "<td class='amount-cell'><input class='ledger-input amount-input' type='number' min='1' step='1' data-field='NOMINAL' value='"+esc(d.NOMINAL)+"' placeholder='0'></td>"+
-      "<td class='category-cell'><select class='ledger-input' data-field='KATEGORI'><option value='DEBIT'"+(d.KATEGORI==="DEBIT"?" selected":"")+">DEBIT</option><option value='KREDIT'"+(d.KATEGORI==="KREDIT"?" selected":"")+">KREDIT</option></select></td>"+
-      "<td class='method-cell'><select class='ledger-input' data-field='METODE_TRANSAKSI'><option value='CASH'"+(d.METODE_TRANSAKSI==="CASH"?" selected":"")+">CASH</option><option value='QRIS'"+(d.METODE_TRANSAKSI==="QRIS"?" selected":"")+">QRIS</option><option value='TRANSFER'"+(d.METODE_TRANSAKSI==="TRANSFER"?" selected":"")+">TRANSFER</option></select></td>"+
+      "<td class='method-cell'><div class='ledger-stack'><select class='ledger-input' data-field='METODE_TRANSAKSI'><option value='CASH'"+(d.METODE_TRANSAKSI==="CASH"?" selected":"")+">CASH</option><option value='QRIS'"+(d.METODE_TRANSAKSI==="QRIS"?" selected":"")+">QRIS</option><option value='TRANSFER'"+(d.METODE_TRANSAKSI==="TRANSFER"?" selected":"")+">TRANSFER</option></select><select class='ledger-input ledger-category' data-field='KATEGORI'><option value='DEBIT'"+(d.KATEGORI==="DEBIT"?" selected":"")+">DEBIT</option><option value='KREDIT'"+(d.KATEGORI==="KREDIT"?" selected":"")+">KREDIT</option></select></div></td>"+
       "<td class='action-cell'><button type='button' class='remove-row' data-remove-draft='"+d.id+"' title='Hapus baris'>×</button></td></tr>";
   });
-  el.innerHTML="<table class='ledger'><thead><tr><th>Tgl.</th><th>Keterangan</th><th>Nominal</th><th>Metode Transaksi / Debit-Kredit</th><th>Aksi</th></tr></thead><tbody>"+rows+"</tbody></table>";
+  el.innerHTML="<table class='ledger'><thead><tr><th>Tgl.</th><th>Keterangan</th><th>Nominal</th><th>Debit/Kredit</th><th>Metode</th><th>Aksi</th></tr></thead><tbody>"+rows+"</tbody></table>";
 }
 function addLedgerRow(){
   const last=ledgerDrafts[ledgerDrafts.length-1];
@@ -356,7 +355,7 @@ function renderExpenseLedger(){
   $("expenseCount").textContent=es.length+" transaksi";
   $("ledgerPeriodTotal").textContent=rupiah(es.reduce(function(sum,e){return sum+num(e.NOMINAL)},0));
   if(!es.length){
-    $("expenseBody").innerHTML="<tr><td colspan='5' class='ledger-empty'>Belum ada pengeluaran pada periode ini.</td></tr>";
+    $("expenseBody").innerHTML="<tr><td colspan='6' class='ledger-empty'>Belum ada pengeluaran pada periode ini.</td></tr>";
     return;
   }
   var groups={};
@@ -369,11 +368,11 @@ function renderExpenseLedger(){
   Object.keys(groups).forEach(function(d){
     var rows=groups[d];
     var total=rows.reduce(function(sum,e){return sum+num(e.NOMINAL)},0);
-    html+="<tr class='ledger-day'><td colspan='2'>"+(d==="UNKNOWN"?"Tanggal tidak diketahui":formatDate(d))+"</td><td colspan='2' class='day-total'>Total "+rupiah(total)+"</td><td></td></tr>";
+    html+="<tr class='ledger-day'><td colspan='2'>"+(d==="UNKNOWN"?"Tanggal tidak diketahui":formatDate(d))+"</td><td colspan='3' class='day-total'>Total "+rupiah(total)+"</td><td></td></tr>";
     rows.forEach(function(e){
       var method=String(e.METODE_TRANSAKSI||"CASH");
       var category=String(e.KATEGORI||"LAINNYA").toUpperCase();
-      html+="<tr><td class='date-cell'>"+formatDate(e.TANGGAL)+"</td><td class='note-cell'>"+esc(e.KETERANGAN||"-")+"</td><td class='amount-cell'>"+rupiah(e.NOMINAL)+"</td><td class='method-cell'><div class='ledger-stack'><span class='badge "+method.toLowerCase()+"'>"+esc(method)+"</span><span class='badge cash'>"+esc(category)+"</span></div></td><td class='action-cell'>—</td></tr>";
+      html+="<tr><td class='date-cell'>"+formatDate(e.TANGGAL)+"</td><td class='note-cell'>"+esc(e.KETERANGAN||"-")+"</td><td class='amount-cell'>"+rupiah(e.NOMINAL)+"</td><td class='category-cell'><span class='badge cash'>"+esc(category)+"</span></td><td class='method-cell'><span class='badge "+method.toLowerCase()+"'>"+esc(method)+"</span></td><td class='action-cell'>—</td></tr>";
     });
   });
   $("expenseBody").innerHTML=html;
