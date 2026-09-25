@@ -153,40 +153,85 @@ async function logoToEscPos(){
   return out;
 }
 
+
+function escposCmd(...values){
+  return String.fromCharCode(...values);
+}
+
 function receiptTextLine(left,right,width=32){
   left=String(left??'');
   right=String(right??'');
-  const gap=Math.max(1,width-left.length-right.length);
-  return left+' '.repeat(gap)+right+'\\n';
+  if(left.length+right.length+1<=width){
+    const gap=Math.max(1,width-left.length-right.length);
+    return left+' '.repeat(gap)+right+'\n';
+  }
+
+  // Never let a long value collide with the opposite column.
+  if(right.length>=width){
+    return wrapReceipt(right,width).map(line=>line+'\n').join('');
+  }
+
+  const leftWidth=Math.max(1,width-right.length-1);
+  const leftLines=wrapReceipt(left,leftWidth);
+  const first=leftLines.shift()||'';
+  const gap=Math.max(1,width-first.length-right.length);
+  return first+' '.repeat(gap)+right+'\n'+
+    leftLines.map(line=>line+'\n').join('');
 }
 
 function centerReceipt(text,width=32){
   const s=String(text??'');
-  if(!s)return '\\n';
-  const left=Math.max(0,Math.floor((width-s.length)/2));
-  return ' '.repeat(left)+s+'\\n';
+  if(!s)return '\n';
+  if(s.length<=width){
+    const left=Math.max(0,Math.floor((width-s.length)/2));
+    return ' '.repeat(left)+s+'\n';
+  }
+  return wrapReceipt(s,width).map(line=>centerReceipt(line,width)).join('');
 }
 
 function wrapReceipt(text,width=32){
-  const words=String(text??'').split(/\\s+/);
+  const source=String(text??'').trim();
+  if(!source)return [];
+  const tokens=source.split(/\s+/);
   const out=[];
   let line='';
-  for(const word of words){
-    if((line?line.length+1:0)+word.length<=width)line+=(line?' ':'')+word;
-    else{
+
+  for(const token of tokens){
+    let word=token;
+    while(word.length>width){
+      if(line){out.push(line);line='';}
+      out.push(word.slice(0,width));
+      word=word.slice(width);
+    }
+    if(!word)continue;
+
+    const candidate=line?(line+' '+word):word;
+    if(candidate.length<=width){
+      line=candidate;
+    }else{
       if(line)out.push(line);
-      line=word.slice(0,width);
+      line=word;
     }
   }
+
   if(line)out.push(line);
   return out;
 }
 
-function parseReceiptAmount(value){
-  const raw=String(value??'').trim();
-  if(!raw)return 0;
-  const normalized=raw.replace(/[^0-9-]/g,'');
-  return Number(normalized)||0;
+function pushWrappedCentered(push,text,width=32){
+  wrapReceipt(text,width).forEach(line=>push(centerReceipt(line,width)));
+}
+
+function pushBoldCentered(push,text){
+  push(escposCmd(0x1b,0x45,0x01));
+  push(centerReceipt(text));
+  push(escposCmd(0x1b,0x45,0x00));
+}
+
+function pushCentered(push,text){
+  push(escposCmd(0x1b,0x61,0x01));
+  push(text);
+  push(escposCmd(0x1b,0x61,0x00));
 }
 
 async function printReceipt(o){
@@ -201,14 +246,23 @@ async function printReceipt(o){
   const push=s=>bytes.push(...enc.encode(String(s)));
   const pushBytes=(...values)=>bytes.push(...values);
 
-  // Logo is the only bitmap/control section. Text below is plain ESC/POS
-  // compatible text so unsupported ESC alignment/bold commands cannot leak
-  // their parameter values (0/1) onto the receipt.
+  // Reset printer state, select standard Font A, 58mm paper spacing,
+  // and start with normal left alignment.
+  pushBytes(0x1b,0x40);       // ESC @
+  pushBytes(0x1b,0x4d,0x00);  // ESC M 0 — Font A
+  pushBytes(0x1b,0x32);       // ESC 2 — standard line spacing
+  pushBytes(0x1b,0x61,0x00);  // ESC a 0 — left
+  pushBytes(0x1b,0x45,0x00);  // ESC E 0 — normal
+
   try{
     bytes.push(...await logoToEscPos());
   }catch(e){
     // If the bitmap fails, continue with the text receipt.
   }
+
+  // Always restore text state after the bitmap.
+  pushBytes(0x1b,0x61,0x01);
+  pushBytes(0x1b,0x45,0x00);
 
   const dt=new Date(o.START ? String(o.START).replace(' ','T') : Date.now());
   const date=isNaN(dt.getTime())
@@ -218,35 +272,44 @@ async function printReceipt(o){
   const items=Array.isArray(o.items)?o.items:[];
   const total=items.reduce((s,x)=>s+parseReceiptAmount(x.TAGIHAN),0);
 
-  // Header follows Preview.
-  push(centerReceipt('FORTUNA LAUNDRY'));
-  push(centerReceipt('Jalan Raya Inpres no 4'));
-  push(centerReceipt('Jakarta Timur'));
-  push(centerReceipt('085693280500'));
-  push('\\n');
+  // Header — centered and bold only where the preview is bold.
+  pushBoldCentered(push,'FORTUNA LAUNDRY');
+  pushCentered(push,'Jalan Raya Inpres no 4\n');
+  pushCentered(push,'Jakarta Timur\n');
+  pushCentered(push,'085693280500\n');
+  push('\n');
 
+  // Date/order row. If it cannot fit, the row helper safely moves
+  // the left value to the next line instead of overlapping.
+  pushBytes(0x1b,0x61,0x00);
   push(receiptTextLine(date,'#'+String(o.ORDER_ID||'PREVIEW')));
-  push(String(o.NAMA||'-').toUpperCase()+'\\n');
-  push('--------------------------------\\n');
+  push(String(o.NAMA||'-').toUpperCase()+'\n');
+  push('--------------------------------\n');
 
   items.forEach((x,i)=>{
-    wrapReceipt((i+1)+'. '+String(x.PAKET||'-'),32).forEach(line=>push(line+'\\n'));
+    push((i+1)+'. ');
+    pushWrappedCentered(push,String(x.PAKET||'-'),29);
     push(receiptTextLine(String(x.BERAT||'0')+'Kg',rupiah(parseReceiptAmount(x.TAGIHAN))));
   });
 
-  push('--------------------------------\\n');
+  push('--------------------------------\n');
+
+  pushBytes(0x1b,0x45,0x01);
   push(receiptTextLine('Total',rupiah(total)));
+  pushBytes(0x1b,0x45,0x00);
 
   const paymentStatus=String(o.STATUS_PEMBAYARAN||'BELUM LUNAS').toUpperCase();
   const paymentMethod=String(o.METODE_TRANSAKSI||'BELUM LUNAS').toUpperCase();
 
-  push(receiptTextLine('',paymentStatus));
-  if(paymentMethod!=='BELUM LUNAS')push(receiptTextLine('Metode:',paymentMethod));
+  pushBytes(0x1b,0x61,0x02);
+  push(paymentStatus+'\n');
+  if(paymentMethod!=='BELUM LUNAS')push('Metode: '+paymentMethod+'\n');
 
-  wrapReceipt('-- PEMBAYARAN HARAP MENGGUNAKAN QRIS --',32)
-    .forEach(line=>push(centerReceipt(line)));
+  pushWrappedCentered(push,'-- PEMBAYARAN HARAP MENGGUNAKAN QRIS --');
 
+  pushBytes(0x1b,0x45,0x01);
   push(centerReceipt('PERHATIAN'));
+  pushBytes(0x1b,0x45,0x00);
 
   const notes=[
     'Baju putih dicuci terpisah minimal 3 kg.',
@@ -259,30 +322,38 @@ async function printReceipt(o){
   ];
 
   notes.forEach((n,idx)=>{
-    wrapReceipt('- '+n,32).forEach(line=>push(centerReceipt(line)));
-    if(idx<notes.length-1)push('\\n');
+    pushWrappedCentered(push,'- '+n);
+    if(idx<notes.length-1)push('\n');
   });
 
-  push('\\n');
-  push(centerReceipt('Kritik dan saran'));
-  push(centerReceipt('085693280500'));
-  push('\\n');
-  push(centerReceipt('#Terimakasih Kasih#'));
-  push('\\n\\n');
+  push('\n');
+  pushCentered(push,'Kritik dan saran\n');
+  pushCentered(push,'085693280500\n');
+  push('\n');
+  pushCentered(push,'#Terimakasih Kasih#\n');
+  push('\n\n');
 
-  // Cut command only; no alignment/bold/reset commands.
+  // Return to normal state before cutting.
+  pushBytes(0x1b,0x45,0x00);
+  pushBytes(0x1b,0x61,0x00);
   pushBytes(0x1d,0x56,0x00);
 
   const payload=new Uint8Array(bytes.length);
   payload.set(bytes);
-  const chunk=180;
+
+  // 100-byte chunks are deliberately conservative for common BLE thermal
+  // printers and avoid assuming a specific negotiated ATT payload size.
+  const chunk=100;
 
   try{
     for(let i=0;i<payload.length;i+=chunk){
       if(!printer?.gatt?.connected||!printerCharacteristic)throw new Error('Koneksi thermal printer terputus.');
       const part=payload.slice(i,i+chunk);
-      if(printerCharacteristic.writeValueWithoutResponse)await printerCharacteristic.writeValueWithoutResponse(part);
-      else await printerCharacteristic.writeValue(part);
+      if(printerCharacteristic.writeWithoutResponse!==false && printerCharacteristic.writeValueWithoutResponse){
+        await printerCharacteristic.writeValueWithoutResponse(part);
+      }else{
+        await printerCharacteristic.writeValue(part);
+      }
       await new Promise(r=>setTimeout(r,20));
     }
     return true;
