@@ -94,17 +94,39 @@ button,input,select{font:inherit}button{cursor:pointer}
   .print-report table{width:100%;border-collapse:collapse;min-width:0}.print-report th,.print-report td{font-size:8.5px;padding:5px 6px;border-bottom:1px solid #e5e7eb;white-space:normal}.print-report th{background:#f3f4f6;text-transform:uppercase}
   .print-right{text-align:right}.print-total{font-weight:800}.print-footer{margin-top:16px;padding-top:8px;border-top:1px solid #d9dee7;font-size:8px;color:#667085;display:flex;justify-content:space-between}
 }
+
+.finance-nav{display:flex;gap:6px;padding:6px;margin-bottom:20px;background:#fff;border:1px solid var(--line);border-radius:16px;overflow-x:auto;scrollbar-width:none}
+.finance-nav::-webkit-scrollbar{display:none}
+.finance-tab{display:flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 15px;border:0;border-radius:11px;background:transparent;color:#667085;font-size:13px;font-weight:800;white-space:nowrap;transition:background .18s ease,color .18s ease,transform .18s ease}
+.finance-tab:hover{background:#f1f5f9;color:#0F5A47}
+.finance-tab.active{background:#0F5A47;color:#fff;box-shadow:0 4px 12px rgba(15,90,71,.16)}
+.finance-view{display:none}
+.finance-view.active{display:block}
+.finance-report-card{padding:18px}
+.finance-report-card h2{margin:0 0 6px;font-size:16px}
+.finance-report-card p{margin:0 0 16px;color:var(--muted);font-size:13px}
+.finance-report-actions{display:flex;gap:10px;flex-wrap:wrap}
+@media(max-width:760px){
+  .finance-nav{margin-left:-2px;margin-right:-2px}
+  .finance-tab{padding:9px 12px;font-size:12px}
+}
 </style>
 </head>
 <body>
 <div class="page">
 <header class="header"><div class="brand"><div class="brand-mark">F</div><div><h1>Finance</h1><p>Ringkasan pemasukan, piutang, dan pengeluaran Fortuna.</p></div></div><div class="actions"><button class="btn print" id="btnPrint">▣ Cetak Pembukuan</button><button class="btn" id="btnRefresh">↻ Refresh</button><button class="btn primary" id="btnAddLedgerRow">+ Tambah Baris</button></div></header>
 <div class="error" id="errorBox"></div>
+<nav class="finance-nav" aria-label="Navigasi Finance">
+  <button class="finance-tab active" data-finance-tab="overview">Overview</button>
+  <button class="finance-tab" data-finance-tab="receivables">Piutang</button>
+  <button class="finance-tab" data-finance-tab="expenses">Log Pengeluaran</button>
+  <button class="finance-tab" data-finance-tab="reports">Laporan</button>
+</nav>
 <section class="filters"><div class="field"><label>Dari tanggal</label><input type="date" id="dateFrom"></div><div class="field"><label>Sampai tanggal</label><input type="date" id="dateTo"></div><div class="field"><label>Status pembayaran</label><select id="paymentFilter"><option value="ALL">Semua</option><option value="LUNAS">Lunas</option><option value="BELUM LUNAS">Belum Lunas</option></select></div><button class="btn primary" id="btnApply">Terapkan Filter</button><button class="btn" id="btnReset">Reset</button></section>
-<section class="cards"><div class="card"><div class="label">TOTAL PENJUALAN</div><div class="value" id="totalSales">Rp0</div><div class="sub">Total tagihan order</div></div><div class="card green"><div class="label">SUDAH DIBAYAR</div><div class="value" id="totalPaid">Rp0</div><div class="sub">Kas yang sudah diterima</div></div><div class="card red"><div class="label">BELUM LUNAS</div><div class="value" id="totalUnpaid">Rp0</div><div class="sub">Piutang pelanggan</div></div><div class="card orange"><div class="label">PENGELUARAN</div><div class="value" id="totalExpense">Rp0</div><div class="sub">Expense pada periode</div></div><div class="card blue"><div class="label">SALDO BERSIH</div><div class="value" id="netBalance">Rp0</div><div class="sub">Sudah dibayar − pengeluaran</div></div></section>
-<div class="grid2"><section class="panel"><div class="panel-head"><h2>Metode Pembayaran</h2></div><div class="panel-body"><div class="methods"><div class="method"><div class="name">CASH</div><div class="amount" id="cashTotal">Rp0</div></div><div class="method"><div class="name">QRIS</div><div class="amount" id="qrisTotal">Rp0</div></div><div class="method"><div class="name">TRANSFER</div><div class="amount" id="transferTotal">Rp0</div></div></div></div></section><section class="panel"><div class="panel-head"><h2>Belum Lunas</h2><span id="unpaidCount" class="badge unpaid">0 order</span></div><div class="table-wrap"><table><thead><tr><th>Order</th><th>Pelanggan</th><th>Tagihan</th><th>Aksi</th></tr></thead><tbody id="unpaidBody"></tbody></table></div></section></div>
-<section class="panel" style="margin-bottom:18px"><div class="panel-head"><h2>Transaksi Penjualan</h2><span id="salesCount" class="badge cash">0 transaksi</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Order</th><th>Pelanggan</th><th>Paket</th><th>Metode</th><th>Status</th><th>Tagihan</th></tr></thead><tbody id="salesBody"></tbody></table></div></section>
-<section class="panel ledger-panel">
+<section class="cards finance-view active" data-finance-view="overview"><div class="card"><div class="label">TOTAL PENJUALAN</div><div class="value" id="totalSales">Rp0</div><div class="sub">Total tagihan order</div></div><div class="card green"><div class="label">SUDAH DIBAYAR</div><div class="value" id="totalPaid">Rp0</div><div class="sub">Kas yang sudah diterima</div></div><div class="card red"><div class="label">BELUM LUNAS</div><div class="value" id="totalUnpaid">Rp0</div><div class="sub">Piutang pelanggan</div></div><div class="card orange"><div class="label">PENGELUARAN</div><div class="value" id="totalExpense">Rp0</div><div class="sub">Expense pada periode</div></div><div class="card blue"><div class="label">SALDO BERSIH</div><div class="value" id="netBalance">Rp0</div><div class="sub">Sudah dibayar − pengeluaran</div></div></section>
+<div class="grid2 finance-view" data-finance-view="overview"><section class="panel"><div class="panel-head"><h2>Metode Pembayaran</h2></div><div class="panel-body"><div class="methods"><div class="method"><div class="name">CASH</div><div class="amount" id="cashTotal">Rp0</div></div><div class="method"><div class="name">QRIS</div><div class="amount" id="qrisTotal">Rp0</div></div><div class="method"><div class="name">TRANSFER</div><div class="amount" id="transferTotal">Rp0</div></div></div></div></section></div><section class="panel finance-view" data-finance-view="receivables" style="margin-bottom:18px"><section class="panel"><div class="panel-head"><h2>Belum Lunas</h2><span id="unpaidCount" class="badge unpaid">0 order</span></div><div class="table-wrap"><table><thead><tr><th>Order</th><th>Pelanggan</th><th>Tagihan</th><th>Aksi</th></tr></thead><tbody id="unpaidBody"></tbody></table></div></section></section>
+<section class="panel finance-view" data-finance-view="overview" style="margin-bottom:18px"><div class="panel-head"><h2>Transaksi Penjualan</h2><span id="salesCount" class="badge cash">0 transaksi</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Order</th><th>Pelanggan</th><th>Paket</th><th>Metode</th><th>Status</th><th>Tagihan</th></tr></thead><tbody id="salesBody"></tbody></table></div></section>
+<section class="panel ledger-panel finance-view" data-finance-view="expenses">
   <div class="panel-head">
     <div><h2>Log Pengeluaran</h2><div class="hint">Pencatatan cepat seperti buku kas — satu baris untuk satu transaksi.</div></div>
     <span id="expenseCount" class="badge cash">0 transaksi</span>
@@ -124,6 +146,16 @@ button,input,select{font:inherit}button{cursor:pointer}
     </table>
   </div>
   <div class="ledger-total"><span>Total pengeluaran periode:</span><strong id="ledgerPeriodTotal">Rp0</strong></div>
+</section>
+<section class="panel finance-view" data-finance-view="reports" style="margin-bottom:18px">
+  <div class="finance-report-card">
+    <h2>Laporan Keuangan</h2>
+    <p>Gunakan filter periode di atas untuk menentukan data laporan, lalu cetak pembukuan sesuai periode yang sedang aktif.</p>
+    <div class="finance-report-actions">
+      <button class="btn primary" id="btnPrintReportTab">▣ Cetak Pembukuan</button>
+      <button class="btn" id="btnRefreshReportTab">↻ Refresh Data</button>
+    </div>
+  </div>
 </section>
 <div class="footer-note">Finance menggunakan data order, pembayaran, dan expense dari webhook Fortuna yang sama dengan dashboard.</div></div>
 
@@ -306,6 +338,26 @@ async function saveLedger(){
   }catch(e){console.error(e);error("Sebagian pengeluaran mungkin belum tersimpan: "+e.message)}
   finally{btn.disabled=false;btn.textContent="Simpan Semua"}
 }
+
+function showFinanceTab(tab){
+  const valid=["overview","receivables","expenses","reports"];
+  if(!valid.includes(tab))tab="overview";
+  document.querySelectorAll(".finance-tab").forEach(btn=>{
+    btn.classList.toggle("active",btn.dataset.financeTab===tab);
+  });
+  document.querySelectorAll(".finance-view").forEach(view=>{
+    view.classList.toggle("active",view.dataset.financeView===tab);
+  });
+  localStorage.setItem("fortuna-finance-tab",tab);
+}
+function initFinanceTabs(){
+  document.querySelectorAll(".finance-tab").forEach(btn=>{
+    btn.addEventListener("click",()=>showFinanceTab(btn.dataset.financeTab));
+  });
+  const saved=localStorage.getItem("fortuna-finance-tab")||"overview";
+  showFinanceTab(saved);
+}
+
 function defaults(){const n=new Date(),f=new Date(n.getFullYear(),n.getMonth(),1);$("dateFrom").value=f.toISOString().slice(0,10);$("dateTo").value=n.toISOString().slice(0,10)}
 function reset(){$("dateFrom").value="";$("dateTo").value="";$("paymentFilter").value="ALL";applyFilters()}
 function filterLabel(){const f=$("dateFrom").value,t=$("dateTo").value,p=$("paymentFilter").value;return(f?formatDate(f):"Awal data")+" — "+(t?formatDate(t):"Hari ini")+" · "+(p==="ALL"?"Semua status":p)}
@@ -328,7 +380,7 @@ function buildPrintReport(){
 }
 function printFinance(){buildPrintReport();window.print()}
 document.addEventListener("DOMContentLoaded",()=>{
-  defaults();renderLedgerDrafts();
+  defaults();initFinanceTabs();renderLedgerDrafts();
   $("btnPrint").addEventListener("click",printFinance);
   $("btnRefresh").addEventListener("click",loadData);
   $("btnApply").addEventListener("click",applyFilters);
@@ -336,6 +388,8 @@ document.addEventListener("DOMContentLoaded",()=>{
   $("btnAddLedgerRow").addEventListener("click",addLedgerRow);
   $("btnAddLedgerRowInline").addEventListener("click",addLedgerRow);
   $("btnSaveLedger").addEventListener("click",saveLedger);
+  $("btnPrintReportTab").addEventListener("click",printFinance);
+  $("btnRefreshReportTab").addEventListener("click",loadData);
   $("ledgerDrafts").addEventListener("input",e=>{const row=e.target.closest("[data-draft-id]");if(!row)return;const d=ledgerDrafts.find(x=>String(x.id)===String(row.dataset.draftId));if(!d)return;const field=e.target.dataset.field;if(field)d[field]=e.target.value});
   $("ledgerDrafts").addEventListener("change",e=>{const row=e.target.closest("[data-draft-id]");if(!row)return;const d=ledgerDrafts.find(x=>String(x.id)===String(row.dataset.draftId));if(!d)return;const field=e.target.dataset.field;if(field)d[field]=e.target.value});
   $("ledgerDrafts").addEventListener("click",e=>{const id=e.target.dataset.removeDraft;if(!id)return;ledgerDrafts=ledgerDrafts.filter(x=>String(x.id)!==String(id));renderLedgerDrafts()});
