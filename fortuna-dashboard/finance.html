@@ -48,6 +48,18 @@ button,input,select{font:inherit}button{cursor:pointer}
 .error{background:#fef2f2;color:#991b1b;border:1px solid #fecaca;padding:12px;border-radius:11px;margin-bottom:14px;display:none;font-size:13px}
 .print-report{display:none}
 .ledger-panel{margin-bottom:18px}
+.expense-layout{display:grid;grid-template-columns:320px 1fr;gap:0}
+.expense-form{padding:18px;border-right:1px solid var(--line);background:#fcfdff}
+.expense-form h3{margin:0 0 5px;font-size:16px}
+.expense-form p{margin:0 0 16px;color:var(--muted);font-size:12px}
+.expense-form-grid{display:grid;gap:12px}
+.expense-form .field{min-width:0}
+.expense-form .field input,.expense-form .field select{width:100%}
+.expense-form .btn{width:100%;margin-top:3px}
+.expense-list{min-width:0}
+.expense-list-toolbar{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;background:#fcfdff}
+.expense-list-toolbar input,.expense-list-toolbar select{height:36px;border:1px solid var(--line);border-radius:9px;padding:0 10px;background:#fff;outline:none}
+.expense-list-toolbar input:focus,.expense-list-toolbar select:focus{border-color:#94a3b8;box-shadow:0 0 0 3px rgba(37,99,235,.08)}
 .ledger-toolbar{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#fcfdff}
 .ledger-toolbar .hint{font-size:11px;color:var(--muted)}
 .ledger-actions{display:flex;gap:8px;flex-wrap:wrap}
@@ -103,11 +115,7 @@ button,input,select{font:inherit}button{cursor:pointer}
   min-width:120px;
   text-align:center;
 }
-.ledger .action-cell{
-  width:85px;
-  min-width:85px;
-  text-align:center;
-}
+
 .ledger-day td{background:#f7f9fc;border-top:1px solid #dfe4ec;border-bottom:1px solid #e7ebf0;font-size:11px;font-weight:850;color:#475467;text-transform:uppercase;letter-spacing:.45px}
 .ledger-day .day-total{text-align:right}
 .ledger-input{width:100%;height:38px;border:1px solid #d8dee8;border-radius:9px;padding:0 10px;background:#fff;outline:none}
@@ -118,15 +126,15 @@ button,input,select{font:inherit}button{cursor:pointer}
 .ledger-stack .ledger-category{font-size:11px;font-weight:800}
 .draft-row{background:#fffdf5}
 .draft-row td{border-bottom:1px solid #ece6cf}
-.remove-row{border:0;background:#fef2f2;color:#b42318;border-radius:8px;width:32px;height:32px;font-weight:900}
-.remove-row:hover{background:#fee4e2}
 .ledger-empty{padding:34px 20px;text-align:center;color:var(--muted)}
 .ledger-total{display:flex;justify-content:flex-end;gap:24px;padding:12px 16px;background:#fbfcfe;border-top:1px solid var(--line);font-size:13px}
 .ledger-total strong{font-size:15px}
 @media(max-width:760px){
+  .expense-layout{grid-template-columns:1fr}
+  .expense-form{border-right:0;border-bottom:1px solid var(--line)}
   .ledger{min-width:680px}
-  .ledger-toolbar{align-items:flex-start}
-  .ledger-actions{width:100%}
+  .expense-list-toolbar{justify-content:stretch}
+  .expense-list-toolbar input,.expense-list-toolbar select{flex:1;min-width:130px}
 }
 @media(max-width:1100px){.cards{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:760px){.page{padding:15px}.header{align-items:flex-start;flex-direction:column}.header h1{font-size:25px}.filters{align-items:stretch}.field{flex:1;min-width:140px}.cards{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.methods{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.form-grid .full{grid-column:auto}}
@@ -165,7 +173,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 </head>
 <body>
 <div class="page">
-<header class="header"><div class="brand"><div class="brand-mark">F</div><div><h1>Finance</h1><p>Ringkasan pemasukan, piutang, dan pengeluaran Fortuna.</p></div></div><div class="actions"><button class="btn print" id="btnPrint">▣ Cetak Pembukuan</button><button class="btn" id="btnRefresh">↻ Refresh</button><button class="btn primary" id="btnAddLedgerRow">+ Tambah Baris</button></div></header>
+<header class="header"><div class="brand"><div class="brand-mark">F</div><div><h1>Finance</h1><p>Ringkasan pemasukan, piutang, dan pengeluaran Fortuna.</p></div></div><div class="actions"><button class="btn print" id="btnPrint">▣ Cetak Pembukuan</button><button class="btn" id="btnRefresh">↻ Refresh</button></div></header>
 <div class="error" id="errorBox"></div>
 <nav class="finance-nav" aria-label="Navigasi Finance">
   <button class="finance-tab active" data-finance-tab="overview">Overview</button>
@@ -179,24 +187,38 @@ button,input,select{font:inherit}button{cursor:pointer}
 <section class="panel finance-view" data-finance-view="overview" style="margin-bottom:18px"><div class="panel-head"><h2>Transaksi Penjualan</h2><span id="salesCount" class="badge cash">0 transaksi</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Order</th><th>Pelanggan</th><th>Paket</th><th>Metode</th><th>Status</th><th>Tagihan</th></tr></thead><tbody id="salesBody"></tbody></table></div></section>
 <section class="panel ledger-panel finance-view" data-finance-view="expenses">
   <div class="panel-head">
-    <div><h2>Log Pengeluaran</h2><div class="hint">Pencatatan cepat seperti buku kas — satu baris untuk satu transaksi.</div></div>
+    <div><h2>Log Pengeluaran</h2><div class="hint">Input dibuat sama seperti Expense di dashboard utama agar alurnya konsisten.</div></div>
     <span id="expenseCount" class="badge cash">0 transaksi</span>
   </div>
-  <div class="ledger-toolbar">
-    <div class="hint">Tekan Enter pada baris terakhir untuk menambah baris baru.</div>
-    <div class="ledger-actions">
-      <button class="btn small" id="btnAddLedgerRowInline">+ Baris</button>
-      <button class="btn small primary" id="btnSaveLedger">Simpan Semua</button>
-    </div>
+  <div class="expense-layout">
+    <section class="expense-form">
+      <h3>Input Expense</h3>
+      <p>Simpan satu pengeluaran baru.</p>
+      <form id="financeExpenseForm" class="expense-form-grid">
+        <div class="field"><label>Tanggal</label><input id="f-tanggal" type="date" required></div>
+        <div class="field"><label>Keterangan</label><input id="f-keterangan" type="text" placeholder="Keterangan pengeluaran"></div>
+        <div class="field"><label>Nominal</label><input id="f-nominal" type="number" min="1" step="1" required placeholder="50000"></div>
+        <div class="field"><label>Metode Transaksi</label><select id="f-metode"><option>CASH</option><option>QRIS</option><option>TRANSFER</option></select></div>
+        <div class="field"><label>Kategori</label><select id="f-kategori"><option value="DEBIT">DEBIT</option><option value="KREDIT">KREDIT</option></select></div>
+        <button id="btnSaveExpense" type="submit" class="btn primary">Simpan Expense</button>
+      </form>
+    </section>
+    <section class="expense-list">
+      <div class="expense-list-toolbar">
+        <input id="expenseSearch" type="search" placeholder="Cari keterangan...">
+        <select id="expenseMethodFilter"><option value="ALL">Semua metode</option><option>CASH</option><option>QRIS</option><option>TRANSFER</option></select>
+        <select id="expenseCategoryFilter"><option value="ALL">Semua kategori</option><option>DEBIT</option><option>KREDIT</option></select>
+      </div>
+      <div class="ledger-wrap">
+        <table class="ledger">
+          <thead><tr><th>Tgl.</th><th>Keterangan</th><th>Nominal</th><th>Debit/Kredit</th><th>Metode</th></tr></thead>
+          <tbody id="expenseBody"></tbody>
+        </table>
+      </div>
+      <div class="ledger-total"><span>Total pengeluaran periode:</span><strong id="ledgerPeriodTotal">Rp0</strong></div>
+    </section>
   </div>
-  <div id="ledgerDrafts" class="ledger-wrap"></div>
-  <div class="ledger-wrap">
-    <table class="ledger">
-      <thead><tr><th>Tgl.</th><th>Keterangan</th><th>Nominal</th><th>Debit/Kredit</th><th>Metode</th><th>Aksi</th></tr></thead>
-      <tbody id="expenseBody"></tbody>
-    </table>
-  </div>
-  <div class="ledger-total"><span>Total pengeluaran periode:</span><strong id="ledgerPeriodTotal">Rp0</strong></div>
+</section>
 </section>
 <section class="panel finance-view" data-finance-view="reports" style="margin-bottom:18px">
   <div class="finance-report-card">
@@ -324,38 +346,35 @@ async function openPayment(id){
   try{await api("payment_update",{ORDER_ID:id,METODE_TRANSAKSI:m});toast("Order #"+id+" berhasil dilunasi");await loadData()}
   catch(e){console.error(e);error("Gagal melunasi order: "+e.message)}
 }
-let ledgerDrafts=[{id:Date.now(),TANGGAL:new Date().toISOString().slice(0,10),KETERANGAN:"",NOMINAL:"",KATEGORI:"DEBIT",METODE_TRANSAKSI:"CASH"}];
-function renderLedgerDrafts(){
-  const el=$("ledgerDrafts");if(!el)return;
-  if(!ledgerDrafts.length){el.innerHTML="";return}
-  let rows="";
-  ledgerDrafts.forEach(d=>{
-    rows+="<tr class='draft-row' data-draft-id='"+d.id+"'>"+
-      "<td class='date-cell'><input class='ledger-input' type='date' data-field='TANGGAL' value='"+esc(d.TANGGAL)+"'></td>"+
-      "<td class='note-cell'><input class='ledger-input' type='text' data-field='KETERANGAN' value='"+esc(d.KETERANGAN)+"' placeholder='Keterangan pengeluaran'></td>"+
-      "<td class='amount-cell'><input class='ledger-input amount-input' type='number' min='1' step='1' data-field='NOMINAL' value='"+esc(d.NOMINAL)+"' placeholder='0'></td>"+
-      "<td class='method-cell'><div class='ledger-stack'><select class='ledger-input' data-field='METODE_TRANSAKSI'><option value='CASH'"+(d.METODE_TRANSAKSI==="CASH"?" selected":"")+">CASH</option><option value='QRIS'"+(d.METODE_TRANSAKSI==="QRIS"?" selected":"")+">QRIS</option><option value='TRANSFER'"+(d.METODE_TRANSAKSI==="TRANSFER"?" selected":"")+">TRANSFER</option></select><select class='ledger-input ledger-category' data-field='KATEGORI'><option value='DEBIT'"+(d.KATEGORI==="DEBIT"?" selected":"")+">DEBIT</option><option value='KREDIT'"+(d.KATEGORI==="KREDIT"?" selected":"")+">KREDIT</option></select></div></td>"+
-      "<td class='action-cell'><button type='button' class='remove-row' data-remove-draft='"+d.id+"' title='Hapus baris'>×</button></td></tr>";
-  });
-  el.innerHTML="<table class='ledger'><thead><tr><th>Tgl.</th><th>Keterangan</th><th>Nominal</th><th>Debit/Kredit</th><th>Metode</th><th>Aksi</th></tr></thead><tbody>"+rows+"</tbody></table>";
-}
-function addLedgerRow(){
-  const last=ledgerDrafts[ledgerDrafts.length-1];
-  ledgerDrafts.push({id:Date.now()+Math.random(),TANGGAL:last&&last.TANGGAL?last.TANGGAL:new Date().toISOString().slice(0,10),KETERANGAN:"",NOMINAL:"",KATEGORI:last&&last.KATEGORI?last.KATEGORI:"DEBIT",METODE_TRANSAKSI:last&&last.METODE_TRANSAKSI?last.METODE_TRANSAKSI:"CASH"});
-  renderLedgerDrafts();
-  setTimeout(()=>{const rows=document.querySelectorAll("#ledgerDrafts [data-field='KETERANGAN']");if(rows.length)rows[rows.length-1].focus()},0);
+function setExpenseFormDefaults(){
+  const e=$("f-tanggal");
+  if(e&&!e.value)e.value=new Date().toISOString().slice(0,10);
+  const m=$("f-metode"); if(m&&!m.value)m.value="CASH";
+  const k=$("f-kategori"); if(k&&!k.value)k.value="DEBIT";
 }
 function renderExpenseLedger(){
-  var es=state.filteredExpenses.slice();
+  let es=state.filteredExpenses.slice();
+  const search=String($("expenseSearch")?.value||"").trim().toLowerCase();
+  const method=$("expenseMethodFilter")?.value||"ALL";
+  const category=$("expenseCategoryFilter")?.value||"ALL";
+  es=es.filter(e=>{
+    const note=String(e.KETERANGAN||"").toLowerCase();
+    const m=String(e.METODE_TRANSAKSI||"CASH").toUpperCase();
+    const k=String(e.KATEGORI||"LAINNYA").toUpperCase();
+    if(search&&!note.includes(search))return false;
+    if(method!=="ALL"&&m!==method)return false;
+    if(category!=="ALL"&&k!==category)return false;
+    return true;
+  });
   es.sort(function(a,b){
     var ad=String(a.TANGGAL||""),bd=String(b.TANGGAL||"");
-    if(ad!==bd)return ad.localeCompare(bd);
-    return String(a.EXPENSE_ID||"").localeCompare(String(b.EXPENSE_ID||""));
+    if(ad!==bd)return bd.localeCompare(ad);
+    return String(b.EXPENSE_ID||"").localeCompare(String(a.EXPENSE_ID||""));
   });
   $("expenseCount").textContent=es.length+" transaksi";
   $("ledgerPeriodTotal").textContent=rupiah(es.reduce(function(sum,e){return sum+num(e.NOMINAL)},0));
   if(!es.length){
-    $("expenseBody").innerHTML="<tr><td colspan='6' class='ledger-empty'>Belum ada pengeluaran pada periode ini.</td></tr>";
+    $("expenseBody").innerHTML="<tr><td colspan='5' class='ledger-empty'>Belum ada pengeluaran pada filter ini.</td></tr>";
     return;
   }
   var groups={};
@@ -368,27 +387,43 @@ function renderExpenseLedger(){
   Object.keys(groups).forEach(function(d){
     var rows=groups[d];
     var total=rows.reduce(function(sum,e){return sum+num(e.NOMINAL)},0);
-    html+="<tr class='ledger-day'><td colspan='2'>"+(d==="UNKNOWN"?"Tanggal tidak diketahui":formatDate(d))+"</td><td colspan='3' class='day-total'>Total "+rupiah(total)+"</td><td></td></tr>";
+    html+="<tr class='ledger-day'><td colspan='2'>"+(d==="UNKNOWN"?"Tanggal tidak diketahui":formatDate(d))+"</td><td colspan='3' class='day-total'>Total "+rupiah(total)+"</td></tr>";
     rows.forEach(function(e){
-      var method=String(e.METODE_TRANSAKSI||"CASH");
+      var method=String(e.METODE_TRANSAKSI||"CASH").toUpperCase();
       var category=String(e.KATEGORI||"LAINNYA").toUpperCase();
-      html+="<tr><td class='date-cell'>"+formatDate(e.TANGGAL)+"</td><td class='note-cell'>"+esc(e.KETERANGAN||"-")+"</td><td class='amount-cell'>"+rupiah(e.NOMINAL)+"</td><td class='category-cell'><span class='badge cash'>"+esc(category)+"</span></td><td class='method-cell'><span class='badge "+method.toLowerCase()+"'>"+esc(method)+"</span></td><td class='action-cell'>—</td></tr>";
+      html+="<tr><td class='date-cell'>"+formatDate(e.TANGGAL)+"</td><td class='note-cell'>"+esc(e.KETERANGAN||"-")+"</td><td class='amount-cell'>"+rupiah(e.NOMINAL)+"</td><td class='category-cell'><span class='badge cash'>"+esc(category)+"</span></td><td class='method-cell'><span class='badge "+method.toLowerCase()+"'>"+esc(method)+"</span></td></tr>";
     });
   });
   $("expenseBody").innerHTML=html;
 }
-async function saveLedger(){
-  const valid=ledgerDrafts.filter(d=>String(d.KETERANGAN||"").trim()||String(d.NOMINAL||"").trim());
-  if(!valid.length){toast("Belum ada transaksi untuk disimpan");return}
-  const invalid=valid.find(d=>!d.TANGGAL||!d.NOMINAL||num(d.NOMINAL)<=0||!["DEBIT","KREDIT"].includes(String(d.KATEGORI||"").toUpperCase()));
-  if(invalid){toast("Setiap baris wajib punya tanggal, nominal, dan Debit/Kredit");return}
-  const btn=$("btnSaveLedger");btn.disabled=true;btn.textContent="Menyimpan...";
+async function saveExpense(event){
+  if(event)event.preventDefault();
+  const tanggal=$("f-tanggal").value;
+  const keterangan=$("f-keterangan").value.trim();
+  const nominal=$("f-nominal").value;
+  const metode=$("f-metode").value;
+  const kategori=$("f-kategori").value;
+  if(!tanggal||!nominal||num(nominal)<=0){toast("Tanggal dan nominal wajib diisi");return}
+  const btn=$("btnSaveExpense");btn.disabled=true;btn.textContent="Menyimpan...";
   try{
-    for(const d of valid)await api("expense_create",{TANGGAL:d.TANGGAL,KATEGORI:String(d.KATEGORI||"DEBIT").toUpperCase(),KETERANGAN:String(d.KETERANGAN||"").trim(),NOMINAL:d.NOMINAL,METODE_TRANSAKSI:d.METODE_TRANSAKSI||"CASH"});
-    ledgerDrafts=[{id:Date.now(),TANGGAL:valid[valid.length-1].TANGGAL,KETERANGAN:"",NOMINAL:"",KATEGORI:valid[valid.length-1].KATEGORI||"DEBIT",METODE_TRANSAKSI:valid[valid.length-1].METODE_TRANSAKSI||"CASH"}];
-    renderLedgerDrafts();toast(valid.length+" pengeluaran berhasil dicatat");await loadData();
-  }catch(e){console.error(e);error("Sebagian pengeluaran mungkin belum tersimpan: "+e.message)}
-  finally{btn.disabled=false;btn.textContent="Simpan Semua"}
+    await api("expense_create",{
+      TANGGAL:tanggal,
+      KATEGORI:String(kategori||"DEBIT").toUpperCase(),
+      KETERANGAN:keterangan,
+      NOMINAL:nominal,
+      METODE_TRANSAKSI:metode||"CASH"
+    });
+    toast("Pengeluaran berhasil dicatat");
+    $("f-keterangan").value="";
+    $("f-nominal").value="";
+    await loadData();
+    $("f-keterangan").focus();
+  }catch(e){
+    console.error(e);
+    error("Gagal menyimpan pengeluaran: "+e.message);
+  }finally{
+    btn.disabled=false;btn.textContent="Simpan Expense";
+  }
 }
 
 function showFinanceTab(tab){
@@ -432,20 +467,17 @@ function buildPrintReport(){
 }
 function printFinance(){buildPrintReport();window.print()}
 document.addEventListener("DOMContentLoaded",()=>{
-  defaults();initFinanceTabs();renderLedgerDrafts();
+  defaults();initFinanceTabs();setExpenseFormDefaults();
   $("btnPrint").addEventListener("click",printFinance);
   $("btnRefresh").addEventListener("click",loadData);
   $("btnApply").addEventListener("click",applyFilters);
   $("btnReset").addEventListener("click",reset);
-  $("btnAddLedgerRow").addEventListener("click",addLedgerRow);
-  $("btnAddLedgerRowInline").addEventListener("click",addLedgerRow);
-  $("btnSaveLedger").addEventListener("click",saveLedger);
+  $("financeExpenseForm").addEventListener("submit",saveExpense);
+  $("expenseSearch").addEventListener("input",renderExpenseLedger);
+  $("expenseMethodFilter").addEventListener("change",renderExpenseLedger);
+  $("expenseCategoryFilter").addEventListener("change",renderExpenseLedger);
   $("btnPrintReportTab").addEventListener("click",printFinance);
   $("btnRefreshReportTab").addEventListener("click",loadData);
-  $("ledgerDrafts").addEventListener("input",e=>{const row=e.target.closest("[data-draft-id]");if(!row)return;const d=ledgerDrafts.find(x=>String(x.id)===String(row.dataset.draftId));if(!d)return;const field=e.target.dataset.field;if(field)d[field]=e.target.value});
-  $("ledgerDrafts").addEventListener("change",e=>{const row=e.target.closest("[data-draft-id]");if(!row)return;const d=ledgerDrafts.find(x=>String(x.id)===String(row.dataset.draftId));if(!d)return;const field=e.target.dataset.field;if(field)d[field]=e.target.value});
-  $("ledgerDrafts").addEventListener("click",e=>{const id=e.target.dataset.removeDraft;if(!id)return;ledgerDrafts=ledgerDrafts.filter(x=>String(x.id)!==String(id));renderLedgerDrafts()});
-  $("ledgerDrafts").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.field==="NOMINAL"){e.preventDefault();addLedgerRow()}});
   loadData();
 });
 </script>
