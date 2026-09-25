@@ -1,6 +1,16 @@
 // Web Bluetooth / ESC-POS: reuse authorized device first, ask pairing only if needed.
 let printerCharacteristic=null;
 let printerConnecting=false;
+
+// Fortuna receipt target:
+// - Thermal roll: 58 mm
+// - Fixed printable width: 384 dots
+// - Font A: 12 x 24 dots => 32 characters/line
+// The Bluetooth connection flow below is intentionally kept unchanged.
+const PRINTER_WIDTH=384;
+const RECEIPT_COLUMNS=32;
+const LOGO_MAX_WIDTH=200;
+
 const PRINTER_OPTIONAL_SERVICES=[
   '000018f0-0000-1000-8000-00805f9b34fb',
   '0000ff00-0000-1000-8000-00805f9b34fb',
@@ -70,9 +80,7 @@ async function connectPrinter(){
   const btn=$('printerBtn'),icon=$('printerIcon'),txt=$('printerText');
   printerConnecting=true;if(btn)btn.disabled=true;if(icon)icon.className='fa-solid fa-spinner fa-spin mr-1';if(txt)txt.textContent='Mencari printer...';
   try{
-    // A. Coba device yang sedang tersimpan/terhubung.
     if(printer?.gatt){try{bindPrinterDisconnect(printer);printerCharacteristic=await findWritableCharacteristic(printer);if(printerCharacteristic){setPrinterUI(true,'Terhubung');toast('Printer terhubung');return true}}catch(_){printerCharacteristic=null}}
-    // B. Coba semua device yang sudah diberi permission browser.
     if(navigator.bluetooth.getDevices){
       try{
         const devices=await navigator.bluetooth.getDevices();
@@ -80,9 +88,8 @@ async function connectPrinter(){
         for(const device of ordered){
           try{printer=device;bindPrinterDisconnect(printer);printerCharacteristic=await findWritableCharacteristic(printer);if(printerCharacteristic){setPrinterUI(true,'Terhubung');toast('Printer terhubung');return true}}catch(_){printerCharacteristic=null}
         }
-      }catch(_){/* lanjut chooser */}
+      }catch(_){}
     }
-    // C. Tidak ada device yang bisa dipakai → browser menampilkan daftar Bluetooth yang tersedia.
     printer=await choosePrinter();bindPrinterDisconnect(printer);
     printerCharacteristic=await findWritableCharacteristic(printer);
     if(!printerCharacteristic)throw new Error('Printer ditemukan, tetapi characteristic Bluetooth untuk mengirim data tidak ditemukan');
@@ -104,29 +111,26 @@ async function logoToEscPos(){
   img.src=FORTUNA_LOGO_PNG;
   await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject});
 
-  // Use the printer's common GS v 0 raster mode.
-  // Build a full 58mm/384-dot canvas so the logo is centered in pixels,
-  // without ESC a commands (some printers print the alignment parameter).
-  const printerWidth=384;
-  const maxLogoWidth=220;
-  const ratio=Math.min(1,maxLogoWidth/img.naturalWidth);
-  const logoW=Math.max(8,Math.floor(img.naturalWidth*ratio/8)*8);
+  // Build the logo on the same fixed 384-dot canvas as the text receipt.
+  // The logo itself is deliberately narrower so it visually matches the
+  // reference preview instead of consuming the full printable width.
+  const logoW=Math.max(8,Math.floor(Math.min(LOGO_MAX_WIDTH,img.naturalWidth)/8)*8);
   const logoH=Math.max(8,Math.round(img.naturalHeight*(logoW/img.naturalWidth)));
 
   const canvas=document.createElement('canvas');
-  canvas.width=printerWidth;
+  canvas.width=PRINTER_WIDTH;
   canvas.height=logoH;
   const ctx=canvas.getContext('2d',{willReadFrequently:true});
   ctx.fillStyle='#fff';
-  ctx.fillRect(0,0,printerWidth,logoH);
-  const left=Math.floor((printerWidth-logoW)/2);
+  ctx.fillRect(0,0,PRINTER_WIDTH,logoH);
+
+  const left=Math.floor((PRINTER_WIDTH-logoW)/2);
   ctx.drawImage(img,left,0,logoW,logoH);
 
-  const data=ctx.getImageData(0,0,printerWidth,logoH).data;
-  const rowBytes=printerWidth>>3;
+  const data=ctx.getImageData(0,0,PRINTER_WIDTH,logoH).data;
+  const rowBytes=PRINTER_WIDTH>>3;
   const bitmap=new Uint8Array(8+rowBytes*logoH);
 
-  // GS v 0 — raster bit image.
   bitmap[0]=0x1d;
   bitmap[1]=0x76;
   bitmap[2]=0x30;
@@ -137,11 +141,11 @@ async function logoToEscPos(){
   bitmap[7]=(logoH>>8)&0xff;
 
   for(let y=0;y<logoH;y++){
-    for(let x=0;x<printerWidth;x++){
-      const i=(y*printerWidth+x)*4;
+    for(let x=0;x<PRINTER_WIDTH;x++){
+      const i=(y*PRINTER_WIDTH+x)*4;
       const alpha=data[i+3];
       const gray=data[i]*.299+data[i+1]*.587+data[i+2]*.114;
-      if(alpha>20 && gray<180){
+      if(alpha>20&&gray<180){
         bitmap[8+y*rowBytes+(x>>3)]|=0x80>>(x&7);
       }
     }
@@ -153,20 +157,21 @@ async function logoToEscPos(){
   return out;
 }
 
-
 function escposCmd(...values){
   return String.fromCharCode(...values);
 }
 
-function receiptTextLine(left,right,width=32){
+function receiptTextLine(left,right,width=RECEIPT_COLUMNS){
   left=String(left??'');
   right=String(right??'');
+
   if(left.length+right.length+1<=width){
     const gap=Math.max(1,width-left.length-right.length);
     return left+' '.repeat(gap)+right+'\n';
   }
 
-  // Never let a long value collide with the opposite column.
+  // Keep the right column intact and move overflowing left text to lines
+  // below it. This preserves the same two-column logic as the HTML preview.
   if(right.length>=width){
     return wrapReceipt(right,width).map(line=>line+'\n').join('');
   }
@@ -175,34 +180,28 @@ function receiptTextLine(left,right,width=32){
   const leftLines=wrapReceipt(left,leftWidth);
   const first=leftLines.shift()||'';
   const gap=Math.max(1,width-first.length-right.length);
+
   return first+' '.repeat(gap)+right+'\n'+
     leftLines.map(line=>line+'\n').join('');
 }
 
-function centerReceipt(text,width=32){
-  const s=String(text??'');
-  if(!s)return '\n';
-  if(s.length<=width){
-    const left=Math.max(0,Math.floor((width-s.length)/2));
-    return ' '.repeat(left)+s+'\n';
-  }
-  return wrapReceipt(s,width).map(line=>centerReceipt(line,width)).join('');
-}
-
-function wrapReceipt(text,width=32){
+function wrapReceipt(text,width=RECEIPT_COLUMNS){
   const source=String(text??'').trim();
   if(!source)return [];
+
   const tokens=source.split(/\s+/);
   const out=[];
   let line='';
 
   for(const token of tokens){
     let word=token;
+
     while(word.length>width){
       if(line){out.push(line);line='';}
       out.push(word.slice(0,width));
       word=word.slice(width);
     }
+
     if(!word)continue;
 
     const candidate=line?(line+' '+word):word;
@@ -218,27 +217,40 @@ function wrapReceipt(text,width=32){
   return out;
 }
 
-function pushWrappedCentered(push,text,width=32){
-  wrapReceipt(text,width).forEach(line=>push(centerReceipt(line,width)));
-}
-
-function pushBoldCentered(push,text){
-  push(escposCmd(0x1b,0x45,0x01));
-  push(centerReceipt(text));
-  push(escposCmd(0x1b,0x45,0x00));
-}
-
+// One alignment system only:
+// ESC/POS handles centering. No manual padding is added to centered text.
 function pushCentered(push,text){
   push(escposCmd(0x1b,0x61,0x01));
   push(text);
   push(escposCmd(0x1b,0x61,0x00));
 }
 
+function pushWrappedCentered(push,text){
+  const lines=wrapReceipt(text,RECEIPT_COLUMNS);
+  if(!lines.length)return;
+
+  push(escposCmd(0x1b,0x61,0x01));
+  lines.forEach(line=>push(line+'\n'));
+  push(escposCmd(0x1b,0x61,0x00));
+}
+
+function pushBoldCentered(push,text){
+  push(escposCmd(0x1b,0x45,0x01));
+  pushCentered(push,text);
+  push(escposCmd(0x1b,0x45,0x00));
+}
+
+function pushBold(push,text){
+  push(escposCmd(0x1b,0x45,0x01));
+  push(text);
+  push(escposCmd(0x1b,0x45,0x00));
+}
+
 async function printReceipt(o){
   let ready=await ensurePrinter();
   if(!ready){
     ready=await connectPrinter();
-    if(!ready) throw new Error('Thermal printer belum terhubung. Hubungkan printer lalu coba cetak lagi.');
+    if(!ready)throw new Error('Thermal printer belum terhubung. Hubungkan printer lalu coba cetak lagi.');
   }
 
   const enc=new TextEncoder();
@@ -246,70 +258,67 @@ async function printReceipt(o){
   const push=s=>bytes.push(...enc.encode(String(s)));
   const pushBytes=(...values)=>bytes.push(...values);
 
-  // Reset printer state, select standard Font A, 58mm paper spacing,
-  // and start with normal left alignment.
-  pushBytes(0x1b,0x40);       // ESC @
-  pushBytes(0x1b,0x4d,0x00);  // ESC M 0 — Font A
-  pushBytes(0x1b,0x32);       // ESC 2 — standard line spacing
-  pushBytes(0x1b,0x61,0x00);  // ESC a 0 — left
-  pushBytes(0x1b,0x45,0x00);  // ESC E 0 — normal
+  // Fixed 58mm receipt layout.
+  // Font A = 12 dots wide, therefore 384 dots = 32 columns.
+  pushBytes(0x1b,0x40);       // ESC @ — reset
+  pushBytes(0x1b,0x4d,0x00);  // Font A
+  pushBytes(0x1b,0x32);       // Standard line spacing
+  pushBytes(0x1b,0x61,0x00);  // Left alignment
+  pushBytes(0x1b,0x45,0x00);  // Normal weight
 
   try{
     bytes.push(...await logoToEscPos());
   }catch(e){
-    // If the bitmap fails, continue with the text receipt.
+    // Continue with the text receipt if the logo cannot be loaded.
   }
 
-  // Always restore text state after the bitmap.
-  pushBytes(0x1b,0x61,0x01);
-  pushBytes(0x1b,0x45,0x00);
-
-  const dt=new Date(o.START ? String(o.START).replace(' ','T') : Date.now());
-  const date=isNaN(dt.getTime())
-    ? new Date().toLocaleString('id-ID')
-    : dt.toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-
-  const items=Array.isArray(o.items)?o.items:[];
-  const total=items.reduce((s,x)=>s+parseReceiptAmount(x.TAGIHAN),0);
-
-  // Header — centered and bold only where the preview is bold.
+  // Header — matches the preview hierarchy.
   pushBoldCentered(push,'FORTUNA LAUNDRY');
   pushCentered(push,'Jalan Raya Inpres no 4\n');
   pushCentered(push,'Jakarta Timur\n');
   pushCentered(push,'085693280500\n');
   push('\n');
 
-  // Date/order row. If it cannot fit, the row helper safely moves
-  // the left value to the next line instead of overlapping.
+  // Date/order row — left and right columns.
   pushBytes(0x1b,0x61,0x00);
+  const dt=new Date(o.START?String(o.START).replace(' ','T'):Date.now());
+  const date=isNaN(dt.getTime())
+    ?new Date().toLocaleString('id-ID')
+    :dt.toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
   push(receiptTextLine(date,'#'+String(o.ORDER_ID||'PREVIEW')));
-  push(String(o.NAMA||'-').toUpperCase()+'\n');
+  pushBold(push,String(o.NAMA||'-').toUpperCase()+'\n');
   push('--------------------------------\n');
 
+  const items=Array.isArray(o.items)?o.items:[];
+
+  // Item name on its own line, weight/price in a stable left/right column.
   items.forEach((x,i)=>{
-    push((i+1)+'. ');
-    pushWrappedCentered(push,String(x.PAKET||'-'),29);
+    pushBold(push,(i+1)+'. '+String(x.PAKET||'-')+'\n');
     push(receiptTextLine(String(x.BERAT||'0')+'Kg',rupiah(parseReceiptAmount(x.TAGIHAN))));
   });
 
   push('--------------------------------\n');
 
-  pushBytes(0x1b,0x45,0x01);
-  push(receiptTextLine('Total',rupiah(total)));
-  pushBytes(0x1b,0x45,0x00);
+  // Total — bold, same two-column structure as preview.
+  pushBold(push,receiptTextLine('Total',rupiah(items.reduce((s,x)=>s+parseReceiptAmount(x.TAGIHAN),0))));
 
   const paymentStatus=String(o.STATUS_PEMBAYARAN||'BELUM LUNAS').toUpperCase();
   const paymentMethod=String(o.METODE_TRANSAKSI||'BELUM LUNAS').toUpperCase();
 
+  // Preview puts payment status on the right.
   pushBytes(0x1b,0x61,0x02);
   push(paymentStatus+'\n');
   if(paymentMethod!=='BELUM LUNAS')push('Metode: '+paymentMethod+'\n');
+  pushBytes(0x1b,0x61,0x00);
 
+  push('\n');
+
+  // QRIS and all notes use printer-native center alignment.
   pushWrappedCentered(push,'-- PEMBAYARAN HARAP MENGGUNAKAN QRIS --');
+  push('\n');
 
-  pushBytes(0x1b,0x45,0x01);
-  push(centerReceipt('PERHATIAN'));
-  pushBytes(0x1b,0x45,0x00);
+  pushBoldCentered(push,'PERHATIAN');
 
   const notes=[
     'Baju putih dicuci terpisah minimal 3 kg.',
@@ -333,7 +342,7 @@ async function printReceipt(o){
   pushCentered(push,'#Terimakasih Kasih#\n');
   push('\n\n');
 
-  // Return to normal state before cutting.
+  // Restore normal printer state before cutting.
   pushBytes(0x1b,0x45,0x00);
   pushBytes(0x1b,0x61,0x00);
   pushBytes(0x1d,0x56,0x00);
@@ -341,21 +350,23 @@ async function printReceipt(o){
   const payload=new Uint8Array(bytes.length);
   payload.set(bytes);
 
-  // 100-byte chunks are deliberately conservative for common BLE thermal
-  // printers and avoid assuming a specific negotiated ATT payload size.
+  // Conservative BLE chunking retained from the previous implementation.
   const chunk=100;
 
   try{
     for(let i=0;i<payload.length;i+=chunk){
       if(!printer?.gatt?.connected||!printerCharacteristic)throw new Error('Koneksi thermal printer terputus.');
       const part=payload.slice(i,i+chunk);
-      if(printerCharacteristic.writeWithoutResponse!==false && printerCharacteristic.writeValueWithoutResponse){
+
+      if(printerCharacteristic.writeWithoutResponse!==false&&printerCharacteristic.writeValueWithoutResponse){
         await printerCharacteristic.writeValueWithoutResponse(part);
       }else{
         await printerCharacteristic.writeValue(part);
       }
+
       await new Promise(r=>setTimeout(r,20));
     }
+
     return true;
   }catch(err){
     printer=null;
