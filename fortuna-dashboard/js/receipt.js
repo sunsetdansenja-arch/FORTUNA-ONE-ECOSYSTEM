@@ -1,9 +1,15 @@
-// Fortuna Laundry — receipt module
+// Fortuna Laundry — receipt module\n\n// Backend order timestamps are UTC when no explicit offset is present.
+function receiptDateTime(value){
+  const raw=String(value??'').trim();
+  if(!raw)return new Date();
+  const iso=raw.includes('T')?raw:raw.replace(' ','T');
+  return /(?:Z|[+-]\\d{2}:?\\d{2})$/.test(iso)?new Date(iso):new Date(iso+'Z');
+}
 
 function receiptHTML(o){
   const items=Array.isArray(o.items)?o.items:[];
   const total=items.reduce((s,x)=>s+(Number(String(x.TAGIHAN||'').replace(/[^0-9.-]/g,''))||0),0);
-  const dt=o.START?new Date(String(o.START).replace(' ','T')):new Date();
+  const dt=o.START?receiptDateTime(o.START):new Date();
   const date=isNaN(dt.getTime())?new Date().toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):dt.toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
   const paymentStatus=String(o.STATUS_PEMBAYARAN||'BELUM LUNAS').toUpperCase();
   const notes=[
