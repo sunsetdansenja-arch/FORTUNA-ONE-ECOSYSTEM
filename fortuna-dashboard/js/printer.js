@@ -8,7 +8,7 @@ let printerConnecting=false;
 // - Font A: 12 x 24 dots => 32 characters/line
 // The Bluetooth connection flow below is intentionally kept unchanged.
 const PRINTER_WIDTH=384;
-const RECEIPT_COLUMNS=32;
+const RECEIPT_COLUMNS=30;
 const LOGO_MAX_WIDTH=200;
 
 const PRINTER_OPTIONAL_SERVICES=[
@@ -161,6 +161,19 @@ function escposCmd(...values){
   return String.fromCharCode(...values);
 }
 
+function printerRupiah(value){
+  const amount=parseReceiptAmount(value);
+  return 'Rp '+Math.round(amount).toLocaleString('id-ID');
+}
+
+function printerDate(value){
+  if(!value)return new Date();
+  const raw=String(value).trim();
+  // Backend timestamps are UTC when they arrive without an offset.
+  const iso=raw.includes('T')?raw:raw.replace(' ','T');
+  return /(?:Z|[+-]\\d{2}:?\\d{2})$/.test(iso)?new Date(iso):new Date(iso+'Z');
+}
+
 function parseReceiptAmount(value){
   if(typeof value==='number'&&Number.isFinite(value))return value;
   const raw=String(value??'').trim();
@@ -267,7 +280,7 @@ async function printReceipt(o){
   const pushBytes=(...values)=>bytes.push(...values);
 
   // Fixed 58mm receipt layout.
-  // Font A = 12 dots wide, therefore 384 dots = 32 columns.
+  // Font A on the target generic 58mm printer is kept to a conservative 30 columns to prevent the final currency digit from wrapping.
   pushBytes(0x1b,0x40);       // ESC @ — reset
   pushBytes(0x1b,0x4d,0x00);  // Font A
   pushBytes(0x1b,0x32);       // Standard line spacing
@@ -289,9 +302,9 @@ async function printReceipt(o){
 
   // Date/order row — left and right columns.
   pushBytes(0x1b,0x61,0x00);
-  const dt=new Date(o.START?String(o.START).replace(' ','T'):Date.now());
+  const dt=printerDate(o.START||null);
   const date=isNaN(dt.getTime())
-    ?new Date().toLocaleString('id-ID')
+    ?new Date().toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})
     :dt.toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
   push(receiptTextLine(date,'#'+String(o.ORDER_ID||'PREVIEW')));
@@ -303,13 +316,13 @@ async function printReceipt(o){
   // Item name on its own line, weight/price in a stable left/right column.
   items.forEach((x,i)=>{
     pushBold(push,(i+1)+'. '+String(x.PAKET||'-')+'\n');
-    push(receiptTextLine(String(x.BERAT||'0')+'Kg',rupiah(parseReceiptAmount(x.TAGIHAN))));
+    push(receiptTextLine(String(x.BERAT||'0')+'Kg',printerRupiah(x.TAGIHAN)));
   });
 
   push('--------------------------------\n');
 
   // Total — bold, same two-column structure as preview.
-  pushBold(push,receiptTextLine('Total',rupiah(items.reduce((s,x)=>s+parseReceiptAmount(x.TAGIHAN),0))));
+  pushBold(push,receiptTextLine('Total',printerRupiah(items.reduce((s,x)=>s+parseReceiptAmount(x.TAGIHAN),0))));
 
   const paymentStatus=String(o.STATUS_PEMBAYARAN||'BELUM LUNAS').toUpperCase();
   const paymentMethod=String(o.METODE_TRANSAKSI||'BELUM LUNAS').toUpperCase();
