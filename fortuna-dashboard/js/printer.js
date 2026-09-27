@@ -161,6 +161,14 @@ function escposCmd(...values){
   return String.fromCharCode(...values);
 }
 
+function parseReceiptAmount(value){
+  if(typeof value==='number'&&Number.isFinite(value))return value;
+  const raw=String(value??'').trim();
+  if(!raw)return 0;
+  const digits=raw.replace(/[^0-9-]/g,'');
+  return Number(digits)||0;
+}
+
 function receiptTextLine(left,right,width=RECEIPT_COLUMNS){
   left=String(left??'');
   right=String(right??'');
