@@ -1,14 +1,33 @@
-// Web Bluetooth / ESC-POS: reuse authorized device first, ask pairing only if needed.
+// Fortuna Laundry - Web Bluetooth / ESC-POS printer (v2, fix "cuma logo yang keluar")
+// Bergantung pada config.js: $, toast, printer (let printer=null), FORTUNA_LOGO_PNG
+//
+// Perubahan utama dibanding versi lama:
+//  1. Logo dikirim per pita 24 baris (bukan 1 blok 3,7 KB) + jeda antar pita,
+//     supaya buffer printer tidak meluap saat sedang mencetak gambar.
+//  2. Chunk BLE 20 byte (aman untuk MTU default), memakai write-with-response
+//     bila tersedia (ada ACK), dan retry kalau "GATT operation already in progress".
+//  3. Bug device.gatt.server (tidak ada) diperbaiki -> device.gatt.
+//  4. Error asli ditampilkan + di-console.error, koneksi lama ditutup bersih
+//     sebelum sambung ulang (tidak lagi membuang objek printer begitu saja).
+//  5. Device baru disimpan ke `printer` hanya kalau characteristic-nya valid.
+
 let printerCharacteristic=null;
 let printerConnecting=false;
+let printerPrinting=false;
 
-// Fortuna receipt target:
-// - Thermal roll: 58 mm
-// - Fixed printable width: 384 dots
-// - Font A: 12 x 24 dots => 32 characters/line
-// The Bluetooth connection flow below is intentionally kept unchanged.
-const PRINTER_WIDTH=384;
-const LOGO_MAX_WIDTH=200;
+// ---- Pengaturan yang boleh di-tuning ---------------------------------------
+const PRINTER_WIDTH=384;            // 58 mm = 384 dot
+const RECEIPT_COLUMNS=32;           // Font A 12x24 => 32 karakter
+const PRINT_LOGO=true;              // set false untuk cetak teks saja (tes)
+const LOGO_WIDTH=160;               // kelipatan 8, maks 384
+const LOGO_BAND_ROWS=24;            // tinggi tiap pita raster
+const LOGO_THRESHOLD=170;           // makin besar = makin hitam
+const PRINTER_CHUNK_SIZE=20;        // naikkan bertahap (64, 100) kalau sudah stabil
+const PRINTER_CHUNK_DELAY_MS=20;    // jeda antar chunk (write without response)
+const PRINTER_ACK_DELAY_MS=6;       // jeda antar chunk (write with response)
+const LOGO_BAND_DELAY_MS=120;       // jeda antar pita logo (beri waktu head thermal)
+const PRINTER_END_DELAY_MS=400;     // tunggu buffer terakhir habis
+// ----------------------------------------------------------------------------
 
 const PRINTER_OPTIONAL_SERVICES=[
   '000018f0-0000-1000-8000-00805f9b34fb',
@@ -19,6 +38,13 @@ const PRINTER_OPTIONAL_SERVICES=[
   '00001101-0000-1000-8000-00805f9b34fb',
   '49535343-fe7d-4ae5-8fa9-9fafd205e455'
 ];
+const PRINTER_IGNORED_SERVICES=[
+  '00001800-0000-1000-8000-00805f9b34fb',
+  '00001801-0000-1000-8000-00805f9b34fb'
+];
+const PRINTER_NAME_RE=/RPP02N|RPP|Printer|Thermal|POS|MTP|Smartcom/i;
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 function setPrinterUI(connected,text){
   const btn=$('printerBtn'),icon=$('printerIcon'),label=$('printerText');
@@ -29,10 +55,19 @@ function setPrinterUI(connected,text){
   btn.classList.toggle('text-[#0F5A47]',connected);
 }
 
+function orderPrinterDevices(devices){
+  const isP=d=>d.name&&PRINTER_NAME_RE.test(d.name);
+  return [...devices.filter(isP),...devices.filter(d=>!isP(d))];
+}
+
 async function findWritableCharacteristic(device){
   if(!device?.gatt)return null;
-  const server=device.gatt.connected?device.gatt.server:await device.gatt.connect();
-  const services=await server.getPrimaryServices();
+  // FIX: BluetoothRemoteGATTServer tidak punya properti .server
+  const server=device.gatt.connected?device.gatt:await device.gatt.connect();
+  const all=await server.getPrimaryServices();
+  const services=all.filter(s=>!PRINTER_IGNORED_SERVICES.includes(s.uuid));
+  const rank=s=>{const i=PRINTER_OPTIONAL_SERVICES.indexOf(s.uuid);return i<0?99:i};
+  services.sort((a,b)=>rank(a)-rank(b));
   for(const service of services){
     const chars=await service.getCharacteristics();
     for(const c of chars)if(c.properties.writeWithoutResponse||c.properties.write)return c;
@@ -52,19 +87,23 @@ function bindPrinterDisconnect(device){
   device.addEventListener('gattserverdisconnected',onPrinterDisconnected);
 }
 
-async function restorePrinter(){
+// Coba device yang pernah diizinkan. `printer` hanya di-set kalau berhasil.
+async function tryAuthorizedDevices(){
   if(!navigator.bluetooth?.getDevices)return false;
+  const devices=await navigator.bluetooth.getDevices();
+  for(const device of orderPrinterDevices(devices)){
+    try{
+      bindPrinterDisconnect(device);
+      const c=await findWritableCharacteristic(device);
+      if(c){printer=device;printerCharacteristic=c;return true}
+    }catch(e){console.debug('[printer] device dilewati:',device.name,e)}
+  }
+  return false;
+}
+
+async function restorePrinter(){
   try{
-    const devices=await navigator.bluetooth.getDevices();
-    if(!devices.length)return false;
-    const ordered=[...devices.filter(d=>d.name&&(/RPP02N|RPP|Printer|Thermal|POS|MTP/i.test(d.name))),...devices.filter(d=>!d.name||!(/RPP02N|RPP|Printer|Thermal|POS|MTP/i.test(d.name)))];
-    for(const device of ordered){
-      try{
-        printer=device;bindPrinterDisconnect(printer);
-        printerCharacteristic=await findWritableCharacteristic(printer);
-        if(printerCharacteristic){setPrinterUI(true,'Terhubung');return true;}
-      }catch(_){printerCharacteristic=null;}
-    }
+    if(await tryAuthorizedDevices()){setPrinterUI(true,'Terhubung');return true}
   }catch(err){console.debug('Printer belum dapat dipulihkan:',err)}
   printerCharacteristic=null;return false;
 }
@@ -75,36 +114,49 @@ async function choosePrinter(){
 
 async function connectPrinter(){
   if(printerConnecting)return !!printerCharacteristic;
-  if(!navigator.bluetooth){toast('Browser tidak mendukung Web Bluetooth. Gunakan Chrome/Edge desktop.',false);return false}
+  if(!navigator.bluetooth){toast('Browser tidak mendukung Web Bluetooth. Gunakan Chrome/Edge.',false);return false}
   const btn=$('printerBtn'),icon=$('printerIcon'),txt=$('printerText');
   printerConnecting=true;if(btn)btn.disabled=true;if(icon)icon.className='fa-solid fa-spinner fa-spin mr-1';if(txt)txt.textContent='Mencari printer...';
   try{
-    if(printer?.gatt){try{bindPrinterDisconnect(printer);printerCharacteristic=await findWritableCharacteristic(printer);if(printerCharacteristic){setPrinterUI(true,'Terhubung');toast('Printer terhubung');return true}}catch(_){printerCharacteristic=null}}
-    if(navigator.bluetooth.getDevices){
+    // 1) pakai device yang sedang dipegang
+    if(printer?.gatt){
       try{
-        const devices=await navigator.bluetooth.getDevices();
-        const ordered=[...devices.filter(d=>d.name&&(/RPP02N|RPP|Printer|Thermal|POS|MTP/i.test(d.name))),...devices.filter(d=>!d.name||!(/RPP02N|RPP|Printer|Thermal|POS|MTP/i.test(d.name)))];
-        for(const device of ordered){
-          try{printer=device;bindPrinterDisconnect(printer);printerCharacteristic=await findWritableCharacteristic(printer);if(printerCharacteristic){setPrinterUI(true,'Terhubung');toast('Printer terhubung');return true}}catch(_){printerCharacteristic=null}
-        }
-      }catch(_){}
+        bindPrinterDisconnect(printer);
+        const c=await findWritableCharacteristic(printer);
+        if(c){printerCharacteristic=c;setPrinterUI(true,'Terhubung');toast('Printer terhubung');return true}
+      }catch(e){console.debug('[printer] reuse gagal:',e)}
     }
-    printer=await choosePrinter();bindPrinterDisconnect(printer);
-    printerCharacteristic=await findWritableCharacteristic(printer);
-    if(!printerCharacteristic)throw new Error('Printer ditemukan, tetapi characteristic Bluetooth untuk mengirim data tidak ditemukan');
+    // 2) device yang pernah diizinkan
+    try{
+      if(await tryAuthorizedDevices()){setPrinterUI(true,'Terhubung');toast('Printer terhubung');return true}
+    }catch(e){console.debug('[printer] getDevices gagal:',e)}
+    // 3) minta pairing baru
+    const dev=await choosePrinter();
+    bindPrinterDisconnect(dev);
+    const c=await findWritableCharacteristic(dev);
+    if(!c)throw new Error('Printer ditemukan, tetapi characteristic Bluetooth untuk mengirim data tidak ditemukan');
+    printer=dev;printerCharacteristic=c;
     setPrinterUI(true,'Terhubung');toast('Printer '+(printer.name||'Bluetooth')+' terhubung');return true;
   }catch(e){
     printerCharacteristic=null;setPrinterUI(false,'Hubungkan ke printer');
+    console.error('[printer] connect gagal:',e);
     toast(e?.name==='NotFoundError'?'Pemilihan printer dibatalkan.':(e?.message||'Gagal menghubungkan printer.'),false);return false;
   }finally{printerConnecting=false;if(btn)btn.disabled=false}
 }
 
 async function ensurePrinter(){
   if(printerCharacteristic&&printer?.gatt?.connected)return true;
-  if(printer){try{bindPrinterDisconnect(printer);printerCharacteristic=await findWritableCharacteristic(printer);if(printerCharacteristic){setPrinterUI(true,'Terhubung');return true}}catch(_){printerCharacteristic=null}}
+  if(printer?.gatt){
+    try{
+      bindPrinterDisconnect(printer);
+      const c=await findWritableCharacteristic(printer);
+      if(c){printerCharacteristic=c;setPrinterUI(true,'Terhubung');return true}
+    }catch(e){console.debug('[printer] reconnect gagal:',e);printerCharacteristic=null}
+  }
   return false;
 }
 
+/* ------------------------------ ESC/POS teks ------------------------------ */
 
 function escposCmd(...values){return String.fromCharCode(...values)}
 
@@ -125,13 +177,6 @@ function printerDate(value){
   const iso=raw.includes('T')?raw:raw.replace(' ','T');
   return /(?:Z|[+-]\d{2}:?\d{2})$/.test(iso)?new Date(iso):new Date(iso+'Z');
 }
-
-/*
- * Fortuna printer renderer:
- * Native ESC/POS text like WARUNG-ACIL.
- * Only the logo is rasterized; all receipt text stays native text.
- */
-const RECEIPT_COLUMNS=32;
 
 function escposText(value){
   return String(value??'')
@@ -172,68 +217,81 @@ function receiptLeft(text,bold=false){
     +(bold?escposCmd(0x1b,0x45,0x00):'');
 }
 
+// Kiri-kanan; kalau tidak muat, kolom kanan turun ke baris berikutnya (tidak melebihi 32 kolom)
 function receiptLeftRight(left,right){
   const l=escposText(left);
   const r=escposText(right);
-  const spaces=Math.max(1,RECEIPT_COLUMNS-l.length-r.length);
-  return l+' '.repeat(spaces)+r+'\n';
+  if(l.length+r.length+1<=RECEIPT_COLUMNS)
+    return l+' '.repeat(RECEIPT_COLUMNS-l.length-r.length)+r+'\n';
+  return l.slice(0,RECEIPT_COLUMNS)+'\n'+' '.repeat(Math.max(0,RECEIPT_COLUMNS-r.length))+r+'\n';
 }
 
 function receiptSeparator(char='-'){
   return receiptCentered(char.repeat(RECEIPT_COLUMNS));
 }
 
-function logoToEscPos(){
+/* -------------------------- Logo: raster per pita -------------------------- */
+
+// Hasil: array Uint8Array, tiap elemen = 1 perintah GS v 0 untuk maks LOGO_BAND_ROWS baris.
+function logoToBands(){
   return new Promise(resolve=>{
     try{
-      if(typeof FORTUNA_LOGO_PNG==='undefined'||!FORTUNA_LOGO_PNG)return resolve(new Uint8Array());
+      if(!PRINT_LOGO||typeof FORTUNA_LOGO_PNG==='undefined'||!FORTUNA_LOGO_PNG)return resolve([]);
       const img=new Image();
+      const timer=setTimeout(()=>resolve([]),3000);
       img.onload=()=>{
+        clearTimeout(timer);
         try{
-          const maxW=160;
-          const w=Math.min(maxW,img.naturalWidth||maxW);
-          const h=Math.max(1,Math.round((img.naturalHeight||1)*(w/(img.naturalWidth||w))));
+          const natW=img.naturalWidth||LOGO_WIDTH,natH=img.naturalHeight||LOGO_WIDTH;
+          const w=Math.max(8,Math.floor(Math.min(LOGO_WIDTH,PRINTER_WIDTH,natW)/8)*8);
+          const h=Math.max(1,Math.round(natH*(w/natW)));
           const canvas=document.createElement('canvas');
           canvas.width=w;canvas.height=h;
           const ctx=canvas.getContext('2d',{willReadFrequently:true});
-          ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);
+          ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+          ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);   // transparan -> putih
           ctx.drawImage(img,0,0,w,h);
-          const pixels=ctx.getImageData(0,0,w,h).data;
-          const rowBytes=Math.ceil(w/8);
-          const header=new Uint8Array([0x1b,0x61,0x01,0x1d,0x76,0x30,0x00,rowBytes&255,(rowBytes>>8)&255,h&255,(h>>8)&255]);
-          const out=new Uint8Array(header.length+rowBytes*h);
-          out.set(header);
-          for(let y=0;y<h;y++){
-            for(let x=0;x<w;x++){
-              const i=(y*w+x)*4;
-              const alpha=pixels[i+3];
-              const gray=pixels[i]*0.299+pixels[i+1]*0.587+pixels[i+2]*0.114;
-              if(alpha>20&&gray<180)out[header.length+y*rowBytes+(x>>3)]|=0x80>>(x&7);
+          const px=ctx.getImageData(0,0,w,h).data;
+          const rowBytes=w>>3;
+          const bands=[];
+          for(let y0=0;y0<h;y0+=LOGO_BAND_ROWS){
+            const rows=Math.min(LOGO_BAND_ROWS,h-y0);
+            const band=new Uint8Array(8+rowBytes*rows);
+            band.set([0x1d,0x76,0x30,0x00,rowBytes&255,(rowBytes>>8)&255,rows&255,(rows>>8)&255]);
+            for(let y=0;y<rows;y++){
+              for(let x=0;x<w;x++){
+                const i=((y0+y)*w+x)*4;
+                const gray=px[i]*0.299+px[i+1]*0.587+px[i+2]*0.114;
+                if(gray<LOGO_THRESHOLD)band[8+y*rowBytes+(x>>3)]|=0x80>>(x&7);
+              }
             }
+            bands.push(band);
           }
-          resolve(out);
-        }catch(_){resolve(new Uint8Array())}
+          resolve(bands);
+        }catch(e){console.warn('[printer] logo gagal diproses:',e);resolve([])}
       };
-      img.onerror=()=>resolve(new Uint8Array());
+      img.onerror=()=>{clearTimeout(timer);resolve([])};
       img.src=FORTUNA_LOGO_PNG;
-    }catch(_){resolve(new Uint8Array())}
+    }catch(_){resolve([])}
   });
 }
 
+/* ------------------------------ Susun struk ------------------------------- */
+
+// Mengembalikan daftar segmen {data:Uint8Array, delay:ms}
 async function buildFortunaEscPos(o){
+  const segs=[];
   const bytes=[];
   const encoder=new TextEncoder();
   const pushText=s=>bytes.push(...encoder.encode(s));
   const pushCmd=(...v)=>bytes.push(...v);
 
-  pushCmd(0x1b,0x40);
-  pushCmd(0x1b,0x32);
+  // init + rata tengah untuk logo
+  segs.push({data:Uint8Array.of(0x1b,0x40,0x1b,0x32,0x1b,0x61,0x01),delay:80});
 
-  const logo=await logoToEscPos();
-  if(logo.length){
-    bytes.push(...logo);
-    pushCmd(0x0a);
-  }
+  const bands=await logoToBands();
+  bands.forEach(b=>segs.push({data:b,delay:LOGO_BAND_DELAY_MS}));
+  if(bands.length)pushCmd(0x0a);
 
   pushText(receiptCentered('FORTUNA LAUNDRY',true));
   pushText(receiptCentered('Jalan Raya Inpres no 4'));
@@ -242,9 +300,8 @@ async function buildFortunaEscPos(o){
   pushCmd(0x0a);
 
   const dt=printerDate(o.START||null);
-  const date=isNaN(dt.getTime())
-    ?new Date().toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})
-    :dt.toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const fmt={day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'};
+  const date=isNaN(dt.getTime())?new Date().toLocaleString('id-ID',fmt):dt.toLocaleString('id-ID',fmt);
   const orderNo='#'+String(o.ORDER_ID||'PREVIEW');
 
   pushCmd(0x1b,0x61,0x00);
@@ -297,47 +354,72 @@ async function buildFortunaEscPos(o){
   pushText(receiptCentered('085693280500'));
   pushCmd(0x0a);
   pushText(receiptCentered('#Terimakasih Kasih#',true));
-  pushCmd(0x0a,0x0a,0x0a);
-  pushCmd(0x1d,0x56,0x00);
+  // Feed kertas agar bisa disobek (printer 58 mm Smartcom tidak punya cutter, GS V dibuang)
+  pushCmd(0x0a,0x0a,0x0a,0x0a);
 
-  return new Uint8Array(bytes);
+  segs.push({data:new Uint8Array(bytes),delay:PRINTER_END_DELAY_MS});
+  return segs;
 }
+
+/* --------------------------------- Kirim BLE ------------------------------- */
 
 async function writePrinterChunk(chunk){
-  if(!printerCharacteristic)throw new Error('Characteristic printer tidak tersedia.');
+  const c=printerCharacteristic;
+  if(!c)throw new Error('Characteristic printer tidak tersedia.');
   if(!chunk||!chunk.length)return;
-  await printerCharacteristic.writeValue(chunk);
-  await new Promise(resolve=>setTimeout(resolve,45));
+  for(let attempt=0;;attempt++){
+    try{
+      if(c.properties.write&&typeof c.writeValueWithResponse==='function'){
+        await c.writeValueWithResponse(chunk);
+        if(PRINTER_ACK_DELAY_MS)await sleep(PRINTER_ACK_DELAY_MS);
+      }else if(c.properties.writeWithoutResponse&&typeof c.writeValueWithoutResponse==='function'){
+        await c.writeValueWithoutResponse(chunk);
+        await sleep(PRINTER_CHUNK_DELAY_MS);
+      }else{
+        await c.writeValue(chunk);
+        await sleep(PRINTER_CHUNK_DELAY_MS);
+      }
+      return;
+    }catch(e){
+      // "GATT operation already in progress" = data belum terkirim, aman diulang
+      if(attempt<5&&/in progress/i.test(String(e?.message||e))){await sleep(100);continue}
+      throw e;
+    }
+  }
 }
 
-async function writePrinterPayload(payload){
+async function writePrinterPayload(segments){
   if(!printerCharacteristic)throw new Error('Characteristic printer tidak tersedia.');
-
-  // Smartcom generic BLE printers are much more reliable when a large
-  // ESC/POS payload is sent as acknowledged chunks instead of one giant write.
-  // Keep chunks small enough for the BLE characteristic and give the printer
-  // time to drain its receive buffer.
-  const chunkSize=64;
-  for(let i=0;i<payload.length;i+=chunkSize){
-    await writePrinterChunk(payload.slice(i,i+chunkSize));
+  for(const seg of segments){
+    for(let i=0;i<seg.data.length;i+=PRINTER_CHUNK_SIZE){
+      if(!printer?.gatt?.connected)throw new Error('Koneksi Bluetooth terputus saat mengirim data.');
+      await writePrinterChunk(seg.data.slice(i,i+PRINTER_CHUNK_SIZE));
+    }
+    if(seg.delay)await sleep(seg.delay);
   }
 }
 
 async function printReceipt(o){
-  let ready=await ensurePrinter();
-  if(!ready){
-    ready=await connectPrinter();
-    if(!ready)throw new Error('Thermal printer belum terhubung. Hubungkan printer lalu coba cetak lagi.');
-  }
-
+  if(printerPrinting)throw new Error('Printer sedang mencetak, tunggu sebentar.');
+  printerPrinting=true;
   try{
-    const payload=await buildFortunaEscPos(o);
-    if(!printer?.gatt?.connected||!printerCharacteristic)throw new Error('Koneksi thermal printer terputus.');
-    await writePrinterPayload(payload);
-    return true;
-  }catch(err){
-    printer=null;printerCharacteristic=null;onPrinterDisconnected();
-    throw new Error('Cetak gagal karena koneksi printer terputus. Hubungkan kembali thermal printer lalu cetak ulang.');
-  }
+    let ready=await ensurePrinter();
+    if(!ready){
+      ready=await connectPrinter();
+      if(!ready)throw new Error('Thermal printer belum terhubung. Hubungkan printer lalu coba cetak lagi.');
+    }
+    try{
+      const segments=await buildFortunaEscPos(o);
+      if(!printer?.gatt?.connected||!printerCharacteristic)throw new Error('Koneksi thermal printer terputus.');
+      await writePrinterPayload(segments);
+      return true;
+    }catch(err){
+      console.error('[printer] cetak gagal:',err);
+      // tutup koneksi lama dengan bersih; objek `printer` dipertahankan agar bisa sambung ulang
+      try{if(printer?.gatt?.connected)printer.gatt.disconnect()}catch(_){}
+      printerCharacteristic=null;
+      setPrinterUI(false,'Hubungkan ke printer');
+      throw new Error('Cetak gagal ('+(err?.message||err)+'). Matikan-nyalakan printer, lalu hubungkan ulang dan cetak lagi.');
+    }
+  }finally{printerPrinting=false}
 }
-
