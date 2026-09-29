@@ -8,7 +8,6 @@ let printerConnecting=false;
 // - Font A: 12 x 24 dots => 32 characters/line
 // The Bluetooth connection flow below is intentionally kept unchanged.
 const PRINTER_WIDTH=384;
-const PRINTER_WIDTH=384;
 const LOGO_MAX_WIDTH=200;
 
 const PRINTER_OPTIONAL_SERVICES=[
