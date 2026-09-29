@@ -303,17 +303,23 @@ async function buildFortunaEscPos(o){
   return new Uint8Array(bytes);
 }
 
+async function writePrinterChunk(chunk){
+  if(!printerCharacteristic)throw new Error('Characteristic printer tidak tersedia.');
+  if(!chunk||!chunk.length)return;
+  await printerCharacteristic.writeValue(chunk);
+  await new Promise(resolve=>setTimeout(resolve,45));
+}
+
 async function writePrinterPayload(payload){
   if(!printerCharacteristic)throw new Error('Characteristic printer tidak tersedia.');
 
-  try{
-    await printerCharacteristic.writeValue(payload);
-    return;
-  }catch(firstError){
-    const chunk=128;
-    for(let i=0;i<payload.length;i+=chunk){
-      await printerCharacteristic.writeValue(payload.slice(i,i+chunk));
-    }
+  // Smartcom generic BLE printers are much more reliable when a large
+  // ESC/POS payload is sent as acknowledged chunks instead of one giant write.
+  // Keep chunks small enough for the BLE characteristic and give the printer
+  // time to drain its receive buffer.
+  const chunkSize=64;
+  for(let i=0;i<payload.length;i+=chunkSize){
+    await writePrinterChunk(payload.slice(i,i+chunkSize));
   }
 }
 
