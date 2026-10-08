@@ -43,14 +43,20 @@ ${bodyHtml}
 
 function printOrders(){
   const q=String($('search')?.value||'').trim().toLowerCase();
+  const activeMode=typeof orderMode!=='undefined'&&orderMode==='INSTANSI'?'INSTANSI':'REGULER';
   const list=(orders||[]).filter(o=>{
     const items=o.items||[];
+    const identity=typeof getOrderType==='function'?getOrderType(o.ORDER_ID):{type:'REGULER',instansi:''};
+    const matchesMode=identity.type===activeMode;
     const matchesStatus=statusFilter==='ALL'||items.some(i=>String(i.STATUS||'').toUpperCase()===statusFilter);
-    const matchesSearch=(String(o.ORDER_ID||'')+' '+String(o.NAMA||'')+' '+String(o.PAKET||'')+' '+items.map(i=>i.PAKET).join(' ')).toLowerCase().includes(q);
-    return matchesStatus&&matchesSearch;
+    const matchesSearch=(String(o.ORDER_ID||'')+' '+identity.type+' '+identity.instansi+' '+String(o.NAMA||'')+' '+String(o.PAKET||'')+' '+items.map(i=>i.PAKET).join(' ')).toLowerCase().includes(q);
+    return matchesMode&&matchesStatus&&matchesSearch;
   });
 
   const filterLabel=statusFilter==='ALL'?'Semua status':statusFilter;
+  const modeLabel=activeMode==='INSTANSI'?'Instansi':'Reguler';
+  const instansiNames=[...new Set(list.map(o=>typeof getOrderType==='function'?getOrderType(o.ORDER_ID).instansi:'').filter(Boolean))];
+  const scopeLabel=activeMode==='INSTANSI'&&instansiNames.length?instansiNames.join(', '):modeLabel;
   const rows=list.map(o=>{
     const items=(o.items||[]).map(i=>`${printEscape(i.PAKET)} (${printEscape(i.BERAT)} kg) — ${printEscape(i.STATUS)}`).join('<br>');
     return `<tr>
@@ -63,12 +69,11 @@ function printOrders(){
 
   openPrintDocument(
     'Daftar Order — Fortuna Laundry',
-    `${list.length} order • Filter: ${filterLabel}${q?' • Pencarian: '+q:''}`,
+    `${list.length} order • Mode: ${scopeLabel} • Filter: ${filterLabel}${q?' • Pencarian: '+q:''}`,
     `<table><thead><tr><th>Order</th><th>Pelanggan</th><th>Paket / Status</th><th class="amount">Total</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="total">Total nominal: ${printMoney(list.reduce((s,o)=>s+(Number(String(o.TOTAL_TAGIHAN||'').replace(/[^0-9.-]/g,''))||0),0))}</div>`
   );
 }
-
 function printExpenses(){
   const q=String($('expenseSearch')?.value||'').trim().toLowerCase();
   const method=$('expenseMethodFilter')?.value||'ALL';
