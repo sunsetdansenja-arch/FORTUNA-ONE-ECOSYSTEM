@@ -45,10 +45,11 @@
   </button>
  </div>
  <section id="ops-new" class="card p-5 md:p-7">
-  <div class="flex justify-between items-center mb-6"><div><h2 class="font-extrabold text-xl">Order Baru</h2><p class="text-sm text-slate-500 mt-1">Satu transaksi dapat berisi beberapa paket.</p></div><span class="w-10 h-10 rounded-xl bg-emerald-50 text-[#0F5A47] flex items-center justify-center"><i class="fa-solid fa-plus"></i></span></div>
+  <div class="flex justify-between items-center mb-6"><div><h2 class="font-extrabold text-xl">Order Baru</h2><p id="orderFormSubtitle" class="text-sm text-slate-500 mt-1">Order pelanggan umum.</p></div><span class="w-10 h-10 rounded-xl bg-emerald-50 text-[#0F5A47] flex items-center justify-center"><i class="fa-solid fa-plus"></i></span></div>
   <form onsubmit="draftOrder(event)" class="space-y-4 max-w-4xl">
+   <div id="institutionField" class="hidden"><label class="block"><span class="label">INSTANSI</span><select id="f-instansi" class="input"><option value="SECATA">SECATA / DIKMATA</option><option value="SECABA">SECABA / DIKMABA</option><option value="PUSPOMAD">PUSPOMAD</option></select></label></div>
    <div class="grid md:grid-cols-2 gap-4"><label class="block"><span class="label">NAMA</span><input id="f-nama" required class="input" placeholder="Nama pelanggan"></label><label class="block"><span class="label">NO WHATSAPP</span><input id="f-wa" class="input" placeholder="08xxxxxxxxxx"></label></div>
-   <div class="flex justify-between items-center"><span class="label">PAKET</span><button type="button" onclick="addPackage()" class="text-xs font-black text-[#0F5A47]">+ Tambah Paket</button></div>
+   <div class="flex justify-between items-center"><span id="packageLabel" class="label">PAKET</span><button type="button" onclick="addPackage()" class="text-xs font-black text-[#0F5A47]">+ Tambah Paket</button></div>
    <div id="packageRows" class="space-y-3"></div>
    <div class="grid md:grid-cols-2 gap-4"><label class="block"><span class="label">PEMBAYARAN</span><select id="f-payment" class="input"><option>CASH</option><option>QRIS</option><option>TRANSFER</option><option selected>BELUM LUNAS</option></select></label><div class="bg-slate-50 rounded-xl px-4 py-4 flex items-center justify-between"><span class="label">TOTAL TAGIHAN</span><strong id="orderTotal">Rp 0</strong></div></div>
    <button class="btn w-full bg-[#0F5A47] text-white rounded-xl py-3.5 font-extrabold"><i class="fa-solid fa-receipt mr-2"></i>Lanjutkan • Preview Struk</button>
@@ -141,6 +142,16 @@ function selectOrderMode(mode){
   document.querySelectorAll('.order-mode-card').forEach(x=>x.classList.remove('active','border-[#0F5A47]','bg-emerald-50'));
   const el=mode==='INSTANSI'?document.getElementById('orderModeInstitution'):document.getElementById('orderModeRegular');
   el?.classList.add('active','border-[#0F5A47]','bg-emerald-50');
+  const inst=$('institutionField');
+  const subtitle=$('orderFormSubtitle');
+  const label=$('packageLabel');
+  if(inst) inst.classList.toggle('hidden',mode!=='INSTANSI');
+  if(subtitle) subtitle.textContent=mode==='INSTANSI'?'Order khusus instansi. Harga item mengikuti tarif instansi.':'Order pelanggan umum.';
+  if(label) label.textContent=mode==='INSTANSI'?'ITEM':'PAKET';
+  const rows=$('packageRows');
+  if(rows) rows.innerHTML='';
+  addPackage();
+  calcTotal();
 }
 </script>
 <script src="js/config.js"></script>
