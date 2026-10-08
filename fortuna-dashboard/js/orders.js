@@ -2,11 +2,34 @@
 
 function normalize(o){return o}
 
-function addPackage(data={}){const row=document.createElement('div');row.className='package-row';row.innerHTML=`<div class="flex gap-2"><select class="input package flex-1">${PACKAGES.map(p=>`<option ${p===(data.PAKET||'FLEKSIBEL')?'selected':''}>${p}</option>`).join('')}</select><button type="button" onclick="this.closest('.package-row').remove();calcTotal()" class="w-10 rounded-xl bg-red-50 text-red-600"><i class="fa-solid fa-trash"></i></button></div><div class="grid grid-cols-2 gap-2 mt-2"><input class="input weight num-input" inputmode="decimal" value="${esc(data.BERAT||'')}" placeholder="Berat (kg)"><input class="input amount num-input" inputmode="decimal" value="${esc(data.TAGIHAN||'')}" placeholder="Tagihan"></div>`;$('packageRows').appendChild(row);row.querySelectorAll('input').forEach(x=>x.addEventListener('input',calcTotal));}
+const INSTITUTION_CATALOG={
+  SECATA:{'EXPRESS 1':'20000','KAOS':'2000','KAOS KAKI':'2000','CELANA PENDEK':'2000','CD':'2000'},
+  SECABA:{'EXPRESS 1':'25000','KAOS':'3000','KAOS KAKI':'3000','CELANA PENDEK':'3000','CD':'3000'},
+  PUSPOMAD:{'EXPRESS 1':'15000','+ HANGER':'5000'}
+};
+function institutionItems(){
+  const inst=$('f-instansi')?.value||'SECATA';
+  return Object.entries(INSTITUTION_CATALOG[inst]||{}).map(([name,price])=>({name,price}));
+}
+function addPackage(data={}){
+  const row=document.createElement('div');row.className='package-row';
+  if(orderMode==='INSTANSI'){
+    const items=institutionItems();
+    row.innerHTML=`<div class="flex gap-2"><select class="input package flex-1">${items.map((p,i)=>`<option value="${esc(p.name)}" data-price="${p.price}" ${p.name===(data.PAKET||items[0]?.name)?'selected':''}>${esc(p.name)}</option>`).join('')}</select><button type="button" onclick="this.closest('.package-row').remove();calcTotal()" class="w-10 rounded-xl bg-red-50 text-red-600"><i class="fa-solid fa-trash"></i></button></div><div class="grid grid-cols-2 gap-2 mt-2"><input class="input weight num-input" inputmode="numeric" value="${esc(data.BERAT||1)}" placeholder="Jumlah"><input class="input amount num-input bg-slate-50" inputmode="numeric" value="${esc(data.TAGIHAN||items[0]?.price||0)}" placeholder="Harga" readonly></div>`;
+    $('packageRows').appendChild(row);
+    const select=row.querySelector('.package'), qty=row.querySelector('.weight'), amount=row.querySelector('.amount');
+    const sync=()=>{const p=items.find(x=>x.name===select.value);amount.value=(Number(qty.value)||0)*(Number(p?.price)||0);calcTotal()};
+    select.addEventListener('change',sync);qty.addEventListener('input',sync);sync();
+  }else{
+    row.innerHTML=`<div class="flex gap-2"><select class="input package flex-1">${PACKAGES.map(p=>`<option ${p===(data.PAKET||'FLEKSIBEL')?'selected':''}>${p}</option>`).join('')}</select><button type="button" onclick="this.closest('.package-row').remove();calcTotal()" class="w-10 rounded-xl bg-red-50 text-red-600"><i class="fa-solid fa-trash"></i></button></div><div class="grid grid-cols-2 gap-2 mt-2"><input class="input weight num-input" inputmode="decimal" value="${esc(data.BERAT||'')}" placeholder="Berat (kg)"><input class="input amount num-input" inputmode="decimal" value="${esc(data.TAGIHAN||'')}" placeholder="Tagihan"></div>`;
+    $('packageRows').appendChild(row);row.querySelectorAll('input').forEach(x=>x.addEventListener('input',calcTotal));
+  }
+}
 
 function calcTotal(){let t=0;document.querySelectorAll('#packageRows .amount').forEach(x=>t+=Number(String(x.value).replace(/[^0-9.-]/g,''))||0);$('orderTotal').textContent=rupiah(t)}
+document.addEventListener('change',e=>{if(e.target.id==='f-instansi'&&orderMode==='INSTANSI'){const rows=$('packageRows');rows.innerHTML='';addPackage();calcTotal()}});
 
-function draftOrder(e){e.preventDefault();const rows=[...document.querySelectorAll('#packageRows .package-row')];if(!rows.length){toast('Tambahkan minimal satu paket',false);return}draft={NAMA:$('f-nama').value.trim(),NO_WA:$('f-wa').value.trim(),METODE_TRANSAKSI:$('f-payment').value,items:rows.map(r=>({PAKET:r.querySelector('.package').value,BERAT:r.querySelector('.weight').value,TAGIHAN:r.querySelector('.amount').value}))};try{previewMode='create';previewOrder={...draft,ORDER_ID:'PREVIEW'};$('receiptPreview').innerHTML=receiptHTML(previewOrder);setPreviewButtons('create');$('previewTitle').textContent='Preview Struk';$('previewSubtitle').textContent='Periksa sebelum menyimpan';$('previewModal').classList.add('show');document.body.classList.add('overflow-hidden')}catch(err){toast('Preview gagal: '+err.message,false)}}
+function draftOrder(e){e.preventDefault();const rows=[...document.querySelectorAll('#packageRows .package-row')];if(!rows.length){toast(orderMode==='INSTANSI'?'Tambahkan minimal satu item':'Tambahkan minimal satu paket',false);return}draft={NAMA:$('f-nama').value.trim(),NO_WA:$('f-wa').value.trim(),METODE_TRANSAKSI:$('f-payment').value,JENIS_ORDER:orderMode,NAMA_INSTANSI:orderMode==='INSTANSI'?$('f-instansi').value:'',items:rows.map(r=>({PAKET:r.querySelector('.package').value,BERAT:r.querySelector('.weight').value,TAGIHAN:r.querySelector('.amount').value}))};try{previewMode='create';previewOrder={...draft,ORDER_ID:'PREVIEW'};$('receiptPreview').innerHTML=receiptHTML(previewOrder);setPreviewButtons('create');$('previewTitle').textContent='Preview Struk';$('previewSubtitle').textContent='Periksa sebelum menyimpan';$('previewModal').classList.add('show');document.body.classList.add('overflow-hidden')}catch(err){toast('Preview gagal: '+err.message,false)}}
 
 function renderOrders(){
   const q=($('search')?.value||'').toLowerCase();
