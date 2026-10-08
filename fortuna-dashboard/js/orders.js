@@ -31,16 +31,26 @@ document.addEventListener('change',e=>{if(e.target.id==='f-instansi'&&orderMode=
 
 function draftOrder(e){e.preventDefault();const rows=[...document.querySelectorAll('#packageRows .package-row')];if(!rows.length){toast(orderMode==='INSTANSI'?'Tambahkan minimal satu item':'Tambahkan minimal satu paket',false);return}draft={NAMA:$('f-nama').value.trim(),NO_WA:$('f-wa').value.trim(),METODE_TRANSAKSI:$('f-payment').value,JENIS_ORDER:orderMode,NAMA_INSTANSI:orderMode==='INSTANSI'?$('f-instansi').value:'',items:rows.map(r=>({PAKET:r.querySelector('.package').value,BERAT:r.querySelector('.weight').value,TAGIHAN:r.querySelector('.amount').value}))};try{previewMode='create';previewOrder={...draft,ORDER_ID:'PREVIEW'};$('receiptPreview').innerHTML=receiptHTML(previewOrder);setPreviewButtons('create');$('previewTitle').textContent='Preview Struk';$('previewSubtitle').textContent='Periksa sebelum menyimpan';$('previewModal').classList.add('show');document.body.classList.add('overflow-hidden')}catch(err){toast('Preview gagal: '+err.message,false)}}
 
+function getOrderType(orderId){
+  const id=String(orderId||'').toUpperCase();
+  if(id.startsWith('SECATA-'))return{type:'INSTANSI',instansi:'SECATA'};
+  if(id.startsWith('SECABA-'))return{type:'INSTANSI',instansi:'SECABA'};
+  if(id.startsWith('PUSPOMAD-'))return{type:'INSTANSI',instansi:'PUSPOMAD'};
+  return{type:'REGULER',instansi:''};
+}
+
 function renderOrders(){
   const q=($('search')?.value||'').toLowerCase();
   const list=orders.filter(o=>{
     const items=o.items||[];
     const matchesStatus=statusFilter==='ALL'||items.some(i=>String(i.STATUS||'').toUpperCase()===statusFilter);
-    const matchesSearch=(o.ORDER_ID+' '+o.NAMA+' '+o.PAKET+' '+items.map(i=>i.PAKET).join(' ')).toLowerCase().includes(q);
+    const identity=getOrderType(o.ORDER_ID);
+    const matchesSearch=(o.ORDER_ID+' '+identity.type+' '+identity.instansi+' '+o.NAMA+' '+o.PAKET+' '+items.map(i=>i.PAKET).join(' ')).toLowerCase().includes(q);
     return matchesStatus&&matchesSearch;
   });
   $('orderCount').textContent=list.length+' order'+(statusFilter!=='ALL'?' • filter '+statusFilter:'');
   $('orderRows').innerHTML=list.map(o=>{
+    const identity=getOrderType(o.ORDER_ID);
     const unpaid=o.STATUS_PEMBAYARAN==='BELUM LUNAS';
     const allDone=(o.items||[]).length>0&&(o.items||[]).every(i=>i.STATUS==='SELESAI');
     const itemHtml=(o.items||[]).map(i=>`
@@ -61,7 +71,13 @@ function renderOrders(){
         ${i.STATUS==='SIAP'?`<button onclick="setStatus('${esc(i.ITEM_ID)}','SELESAI')" class="btn text-[9px] bg-slate-900 text-white rounded-lg px-2 py-1">SELESAI</button>`:''}
       </div>`).join('');
     return `<tr class="border-t border-slate-100 align-top">
-      <td class="px-3 py-2.5 font-black whitespace-nowrap">#${esc(o.ORDER_ID)}<div class="text-[9px] text-slate-400 mt-0.5">${o.START?new Date(o.START.replace(' ','T')).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div></td>
+      <td class="px-3 py-2.5 whitespace-nowrap">
+        <div class="flex items-center gap-2">
+          <span class="font-black">#${esc(o.ORDER_ID)}</span>
+          ${identity.type==='INSTANSI'?'<span class="inline-flex items-center rounded-full bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 text-[8px] font-black tracking-wide">INSTANSI • '+esc(identity.instansi)+'</span>':'<span class="inline-flex items-center rounded-full bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 text-[8px] font-black tracking-wide">REGULER</span>'}
+        </div>
+        <div class="text-[9px] text-slate-400 mt-0.5">${o.START?new Date(o.START.replace(' ','T')).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div>
+      </td>
       <td class="px-3 py-2.5 min-w-[130px]"><b class="text-xs">${esc(o.NAMA)}</b><div class="text-[9px] text-slate-400">${esc(o.NO_WA)}</div>${unpaid?'<span class="pill unpaid inline-block mt-1">BELUM LUNAS</span>':''}</td>
       <td class="px-3 py-2.5 min-w-[270px]"><div class="order-package-list">${itemHtml}</div></td>
       <td class="px-3 py-2.5 whitespace-nowrap"><div class="order-total"><span class="order-total-label">Total</span><span class="order-total-value">${rupiah(o.TOTAL_TAGIHAN)}</span></div></td>
