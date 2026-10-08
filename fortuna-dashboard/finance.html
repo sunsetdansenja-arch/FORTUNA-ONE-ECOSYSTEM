@@ -28,6 +28,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 .btn.small{padding:7px 10px;font-size:12px}
 .filters,.card,.panel{background:rgba(255,255,255,.94);border:1px solid rgba(228,232,239,.95);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
 .filters{padding:16px;display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.order-filter-hidden{display:none}
 .field{display:flex;flex-direction:column;gap:7px;min-width:165px}.field label{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.45px}
 .field input,.field select{height:42px;border:1px solid var(--line);border-radius:11px;padding:0 11px;background:#fff;outline:none;transition:.15s}
 .field input:focus,.field select:focus{border-color:#94a3b8;box-shadow:0 0 0 3px rgba(37,99,235,.08)}
@@ -47,6 +48,10 @@ button,input,select{font:inherit}button{cursor:pointer}
 .toast{position:fixed;right:20px;bottom:20px;background:#111827;color:#fff;padding:12px 15px;border-radius:11px;box-shadow:var(--shadow);display:none;z-index:100;font-size:13px}.toast.show{display:block}
 .error{background:#fef2f2;color:#991b1b;border:1px solid #fecaca;padding:12px;border-radius:11px;margin-bottom:14px;display:none;font-size:13px}
 .print-report{display:none}
+@media print{
+  .print-report.billing-mode .print-section.billing-hide{display:none}
+  .print-report.billing-mode .print-kpis{grid-template-columns:repeat(2,1fr)}
+}
 .ledger-panel{margin-bottom:18px}
 .expense-layout{display:grid;grid-template-columns:320px 1fr;gap:0}
 .expense-form{padding:18px;border-right:1px solid var(--line);background:#fcfdff}
@@ -181,10 +186,10 @@ button,input,select{font:inherit}button{cursor:pointer}
   <button class="finance-tab" data-finance-tab="expenses">Log Pengeluaran</button>
   <button class="finance-tab" data-finance-tab="reports">Laporan</button>
 </nav>
-<section class="filters"><div class="field"><label>Dari tanggal</label><input type="date" id="dateFrom"></div><div class="field"><label>Sampai tanggal</label><input type="date" id="dateTo"></div><div class="field"><label>Status pembayaran</label><select id="paymentFilter"><option value="ALL">Semua</option><option value="LUNAS">Lunas</option><option value="BELUM LUNAS">Belum Lunas</option></select></div><button class="btn primary" id="btnApply">Terapkan Filter</button><button class="btn" id="btnReset">Reset</button></section>
+<section class="filters"><div class="field"><label>Dari tanggal</label><input type="date" id="dateFrom"></div><div class="field"><label>Sampai tanggal</label><input type="date" id="dateTo"></div><div class="field"><label>Jenis order</label><select id="orderTypeFilter"><option value="ALL">Semua</option><option value="REGULER">Reguler</option><option value="INSTANSI">Instansi</option></select></div><div class="field order-filter-hidden" id="institutionField"><label>Instansi</label><select id="institutionFilter"><option value="ALL">Semua Instansi</option><option value="SECATA">SECATA / DIKMATA</option><option value="SECABA">SECABA / DIKMABA</option><option value="PUSPOMAD">PUSPOMAD</option></select></div><div class="field"><label>Status pembayaran</label><select id="paymentFilter"><option value="ALL">Semua</option><option value="LUNAS">Lunas</option><option value="BELUM LUNAS">Belum Lunas</option></select></div><button class="btn primary" id="btnApply">Terapkan Filter</button><button class="btn" id="btnReset">Reset</button></section>
 <section class="cards finance-view active" data-finance-view="overview"><div class="card"><div class="label">TOTAL PENJUALAN</div><div class="value" id="totalSales">Rp0</div><div class="sub">Total tagihan order</div></div><div class="card green"><div class="label">SUDAH DIBAYAR</div><div class="value" id="totalPaid">Rp0</div><div class="sub">Kas yang sudah diterima</div></div><div class="card red"><div class="label">BELUM LUNAS</div><div class="value" id="totalUnpaid">Rp0</div><div class="sub">Piutang pelanggan</div></div><div class="card orange"><div class="label">PENGELUARAN</div><div class="value" id="totalExpense">Rp0</div><div class="sub">Expense pada periode</div></div><div class="card blue"><div class="label">SALDO BERSIH</div><div class="value" id="netBalance">Rp0</div><div class="sub">Sudah dibayar − pengeluaran</div></div></section>
 <div class="grid2 finance-view" data-finance-view="overview"><section class="panel"><div class="panel-head"><h2>Metode Pembayaran</h2></div><div class="panel-body"><div class="methods"><div class="method"><div class="name">CASH</div><div class="amount" id="cashTotal">Rp0</div></div><div class="method"><div class="name">QRIS</div><div class="amount" id="qrisTotal">Rp0</div></div><div class="method"><div class="name">TRANSFER</div><div class="amount" id="transferTotal">Rp0</div></div></div></div></section></div><section class="panel finance-view" data-finance-view="receivables" style="margin-bottom:18px"><section class="panel"><div class="panel-head"><h2>Belum Lunas</h2><span id="unpaidCount" class="badge unpaid">0 order</span></div><div class="table-wrap"><table><thead><tr><th>Order</th><th>Pelanggan</th><th>Tagihan</th><th>Aksi</th></tr></thead><tbody id="unpaidBody"></tbody></table></div></section></section>
-<section class="panel finance-view" data-finance-view="overview" style="margin-bottom:18px"><div class="panel-head"><h2>Transaksi Penjualan</h2><span id="salesCount" class="badge cash">0 transaksi</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Order</th><th>Pelanggan</th><th>Paket</th><th>Metode</th><th>Status</th><th>Tagihan</th></tr></thead><tbody id="salesBody"></tbody></table></div></section>
+<section class="panel finance-view" data-finance-view="overview" style="margin-bottom:18px"><div class="panel-head"><h2>Transaksi Penjualan</h2><div class="actions"><span id="salesCount" class="badge cash">0 transaksi</span><button class="btn small primary" id="btnPrintBilling">▣ PDF Tagihan</button></div></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Order</th><th>Pelanggan</th><th>Paket</th><th>Metode</th><th>Status</th><th>Tagihan</th></tr></thead><tbody id="salesBody"></tbody></table></div></section>
 <section class="panel ledger-panel finance-view" data-finance-view="expenses">
   <div class="panel-head">
     <div><h2>Log Pengeluaran</h2><div class="hint">Input dibuat sama seperti Expense di dashboard utama agar alurnya konsisten.</div></div>
@@ -292,12 +297,30 @@ async function loadData(){
     if(refresh){refresh.disabled=false;refresh.textContent="↻ Refresh"}
   }
 }
+function financeOrderType(orderId){
+  const id=String(orderId||"").toUpperCase();
+  if(id.startsWith("SECATA-"))return{type:"INSTANSI",instansi:"SECATA"};
+  if(id.startsWith("SECABA-"))return{type:"INSTANSI",instansi:"SECABA"};
+  if(id.startsWith("PUSPOMAD-"))return{type:"INSTANSI",instansi:"PUSPOMAD"};
+  return{type:"REGULER",instansi:""};
+}
+function syncInstitutionFilter(){
+  const type=$("orderTypeFilter").value;
+  const field=$("institutionField");
+  if(field)field.classList.toggle("order-filter-hidden",type!=="INSTANSI");
+  if(type!=="INSTANSI")$("institutionFilter").value="ALL";
+}
 function applyFilters(){
   const f=$("dateFrom").value,t=$("dateTo").value,p=$("paymentFilter").value;
+  const type=$("orderTypeFilter").value;
+  const inst=$("institutionFilter").value;
   state.filteredOrders=state.orders.filter(o=>{
     const d=dateOnly(o.START);
+    const identity=financeOrderType(o.ORDER_ID);
     if(f&&(!d||d<f))return false;
     if(t&&(!d||d>t))return false;
+    if(type!=="ALL"&&identity.type!==type)return false;
+    if(type==="INSTANSI"&&inst!=="ALL"&&identity.instansi!==inst)return false;
     if(p!=="ALL"&&String(o.STATUS_PEMBAYARAN||"").toUpperCase()!==p)return false;
     return true;
   });
@@ -446,9 +469,25 @@ function initFinanceTabs(){
 }
 
 function defaults(){const n=new Date(),f=new Date(n.getFullYear(),n.getMonth(),1);$("dateFrom").value=f.toISOString().slice(0,10);$("dateTo").value=n.toISOString().slice(0,10)}
-function reset(){$("dateFrom").value="";$("dateTo").value="";$("paymentFilter").value="ALL";applyFilters()}
-function filterLabel(){const f=$("dateFrom").value,t=$("dateTo").value,p=$("paymentFilter").value;return(f?formatDate(f):"Awal data")+" — "+(t?formatDate(t):"Hari ini")+" · "+(p==="ALL"?"Semua status":p)}
+function reset(){$("dateFrom").value="";$("dateTo").value="";$("orderTypeFilter").value="ALL";$("institutionFilter").value="ALL";$("paymentFilter").value="ALL";syncInstitutionFilter();applyFilters()}
+function filterLabel(){
+  const f=$("dateFrom").value,t=$("dateTo").value,p=$("paymentFilter").value;
+  const type=$("orderTypeFilter").value;
+  const inst=$("institutionFilter").value;
+  let scope=type==="ALL"?"Semua jenis order":type==="REGULER"?"Reguler":(inst==="ALL"?"Semua instansi":"Instansi "+inst);
+  return(f?formatDate(f):"Awal data")+" — "+(t?formatDate(t):"Hari ini")+" · "+scope+" · "+(p==="ALL"?"Semua status":p)
+}
+function billingLabel(){
+  const type=$("orderTypeFilter").value;
+  const inst=$("institutionFilter").value;
+  if(type==="INSTANSI")return inst==="ALL"?"Semua Instansi":"Instansi "+inst;
+  if(type==="REGULER")return "Reguler";
+  return "Semua Jenis Order";
+}
 function buildPrintReport(){
+  $("printReport").classList.remove("billing-mode");
+  $("printReport").querySelectorAll(".billing-hide").forEach(e=>e.classList.remove("billing-hide"));
+  $("printReport").querySelector(".print-title").textContent="FORTUNA — RANGKUMAN PEMBUKUAN";
   const os=state.filteredOrders,es=state.filteredExpenses;
   const paid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS");
   const unpaid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()!=="LUNAS");
@@ -465,13 +504,33 @@ function buildPrintReport(){
   $("printExpenseBody").innerHTML=es.length?es.map(e=>"<tr><td>"+formatDate(e.TANGGAL)+"</td><td>"+esc(e.KETERANGAN||"-")+"</td><td>"+esc(String(e.KATEGORI||"LAINNYA").toUpperCase())+"</td><td>"+esc(String(e.METODE_TRANSAKSI||"CASH").toUpperCase())+"</td><td class='print-right'>"+rupiah(e.NOMINAL)+"</td></tr>").join(""):"<tr><td colspan='5'>Belum ada pengeluaran pada filter ini.</td></tr>";
   $("printTimestamp").textContent="Dicetak "+new Date().toLocaleString("id-ID");
 }
+function buildBillingReport(){
+  const os=state.filteredOrders;
+  const total=os.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0);
+  const print=$("printReport");
+  print.classList.add("billing-mode");
+  $("printReport").querySelectorAll(".print-section").forEach(e=>e.classList.remove("billing-hide"));
+  $("printReport").querySelectorAll(".print-section")[0].classList.add("billing-hide");
+  $("printReport").querySelectorAll(".print-section")[2].classList.add("billing-hide");
+  $("printReport").querySelector(".print-title").textContent="FORTUNA — TAGIHAN";
+  $("printMeta").innerHTML="Periode: <strong>"+esc($("dateFrom").value?formatDate($("dateFrom").value):"Awal data")+" — "+esc($("dateTo").value?formatDate($("dateTo").value):"Hari ini"))+"</strong><br>"+esc(billingLabel())+"<br>Dicetak: "+esc(new Date().toLocaleString("id-ID"));
+  $("printKpis").innerHTML=[["Jumlah Order",String(os.length)+" order"],["Total Tagihan",rupiah(total)]].map(x=>"<div class='print-kpi'><div class='k'>"+x[0]+"</div><div class='v'>"+x[1]+"</div></div>").join("");
+  $("printSalesBody").innerHTML=os.length?os.map(o=>{const p=String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS",m=String(o.METODE_TRANSAKSI||"BELUM LUNAS").toUpperCase();return"<tr><td>"+formatDate(o.START)+"</td><td>#"+esc(o.ORDER_ID)+"</td><td>"+esc(o.NAMA)+"</td><td>"+esc(o.PAKET||"-")+"</td><td>"+esc(m)+"</td><td>"+(p?"LUNAS":"BELUM LUNAS")+"</td><td class='print-right'>"+rupiah(o.TOTAL_TAGIHAN)+"</td></tr>"}).join(""):"<tr><td colspan='7'>Tidak ada transaksi pada filter ini.</td></tr>";
+  $("printMethods").innerHTML="";
+  $("printExpenseBody").innerHTML="";
+  $("printTimestamp").textContent="Dicetak "+new Date().toLocaleString("id-ID");
+}
 function printFinance(){buildPrintReport();window.print()}
+function printBilling(){buildBillingReport();window.print()}
 document.addEventListener("DOMContentLoaded",()=>{
   defaults();initFinanceTabs();setExpenseFormDefaults();
   $("btnPrint").addEventListener("click",printFinance);
   $("btnRefresh").addEventListener("click",loadData);
   $("btnApply").addEventListener("click",applyFilters);
   $("btnReset").addEventListener("click",reset);
+  $("orderTypeFilter").addEventListener("change",()=>{syncInstitutionFilter();applyFilters()});
+  $("institutionFilter").addEventListener("change",applyFilters);
+  $("btnPrintBilling").addEventListener("click",printBilling);
   $("financeExpenseForm").addEventListener("submit",saveExpense);
   $("expenseSearch").addEventListener("input",renderExpenseLedger);
   $("expenseMethodFilter").addEventListener("change",renderExpenseLedger);
