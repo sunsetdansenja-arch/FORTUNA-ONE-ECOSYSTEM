@@ -32,6 +32,18 @@
   <button id="opsNavNew" onclick="showOpsView('new')" class="active rounded-xl px-4 py-2.5 font-extrabold text-sm border border-slate-200 bg-white">ORDER BARU</button>
   <button id="opsNavList" onclick="showOpsView('list')" class="rounded-xl px-4 py-2.5 font-extrabold text-sm border border-slate-200 bg-white">DAFTAR ORDER</button>
  </div>
+ <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+  <button id="orderModeRegular" type="button" onclick="selectOrderMode('REGULER')" class="order-mode-card active card p-4 text-left border-2 border-[#0F5A47] bg-emerald-50">
+   <div class="text-[10px] font-black tracking-[.08em] text-[#0F5A47]">MODE ORDER</div>
+   <div class="font-extrabold text-lg mt-1">ORDER REGULER</div>
+   <div class="text-xs text-slate-500 mt-1">Pesanan pelanggan umum.</div>
+  </button>
+  <button id="orderModeInstitution" type="button" onclick="selectOrderMode('INSTANSI')" class="order-mode-card card p-4 text-left border-2 border-transparent">
+   <div class="text-[10px] font-black tracking-[.08em] text-slate-500">MODE ORDER</div>
+   <div class="font-extrabold text-lg mt-1">ORDER INSTANSI</div>
+   <div class="text-xs text-slate-500 mt-1">Pesanan khusus instansi.</div>
+  </button>
+ </div>
  <section id="ops-new" class="card p-5 md:p-7">
   <div class="flex justify-between items-center mb-6"><div><h2 class="font-extrabold text-xl">Order Baru</h2><p class="text-sm text-slate-500 mt-1">Satu transaksi dapat berisi beberapa paket.</p></div><span class="w-10 h-10 rounded-xl bg-emerald-50 text-[#0F5A47] flex items-center justify-center"><i class="fa-solid fa-plus"></i></span></div>
   <form onsubmit="draftOrder(event)" class="space-y-4 max-w-4xl">
@@ -122,6 +134,15 @@
 <div id="payModal" class="modal fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div class="modal-box bg-white rounded-2xl max-w-sm w-full p-5"><h3 class="font-extrabold text-lg">Pelunasan</h3><p class="text-sm text-slate-500 mt-1">Lunas menggunakan metode apa?</p><div class="grid gap-2 mt-5"><button onclick="pay('CASH')" class="btn border rounded-xl py-3 font-extrabold">CASH</button><button onclick="pay('QRIS')" class="btn border rounded-xl py-3 font-extrabold">QRIS</button><button onclick="pay('TRANSFER')" class="btn border rounded-xl py-3 font-extrabold">TRANSFER</button><button onclick="closeModal('payModal')" class="py-2 text-sm font-bold text-slate-500">Batal</button></div></div></div>
 <div id="numpadModal" class="modal fixed inset-0 z-[60] bg-black/40 flex items-end justify-center p-3"><div class="modal-box bg-white rounded-2xl w-full max-w-sm p-4"><div class="flex justify-between mb-3"><b>Input angka</b><button onclick="closeModal('numpadModal')">Selesai</button></div><div id="numDisplay" class="text-right text-2xl font-black p-3 bg-slate-50 rounded-xl mb-3">0</div><div class="numpad" id="numpad"></div></div></div>
 <div id="toast" class="toast fixed top-5 right-5 z-[80] bg-slate-900 text-white px-4 py-3 rounded-xl text-sm font-bold"></div>
+<script>
+let orderMode='REGULER';
+function selectOrderMode(mode){
+  orderMode=mode;
+  document.querySelectorAll('.order-mode-card').forEach(x=>x.classList.remove('active','border-[#0F5A47]','bg-emerald-50'));
+  const el=mode==='INSTANSI'?document.getElementById('orderModeInstitution'):document.getElementById('orderModeRegular');
+  el?.classList.add('active','border-[#0F5A47]','bg-emerald-50');
+}
+</script>
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/orders.js"></script>
