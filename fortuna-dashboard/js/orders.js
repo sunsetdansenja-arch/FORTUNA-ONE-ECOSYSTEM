@@ -78,7 +78,7 @@ function renderOrders(){
           <div class="order-item-name">${esc(i.PAKET)}</div>
           <span class="pill s-${esc(i.STATUS)}">${esc(i.STATUS)}</span>
         </div>
-        <div class="order-item-meta"><span>${esc(i.BERAT)} kg</span><span>•</span><span>${rupiah(i.TAGIHAN)}</span></div>
+        <div class="order-item-meta"><span>${esc(i.BERAT)} ${getOrderUnit(o)}</span><span>•</span><span>${rupiah(i.TAGIHAN)}</span></div>
       </div>`).join('');
     const itemActions=(o.items||[]).filter(i=>i.STATUS!=='SELESAI').map(i=>`
       <div class="order-action-item">
@@ -99,7 +99,7 @@ function renderOrders(){
       </td>
       <td class="px-3 py-2.5 min-w-[130px]"><b class="text-xs">${esc(o.NAMA)}</b><div class="text-[9px] text-slate-400">${esc(o.NO_WA)}</div>${unpaid?'<span class="pill unpaid inline-block mt-1">BELUM LUNAS</span>':''}</td>
       <td class="px-3 py-2.5 min-w-[270px]"><div class="order-package-list">${itemHtml}</div></td>
-      <td class="px-3 py-2.5 whitespace-nowrap"><div class="order-total"><span class="order-total-label">Total</span><span class="order-total-value">${rupiah(o.TOTAL_TAGIHAN)}</span></div></td>
+      <td class="px-3 py-2.5 whitespace-nowrap"><div class="order-total"><span class="order-total-label">Total</span><span class="order-total-value">${rupiah(getOrderTotalAmount(o))}</span></div></td>
       <td class="px-3 py-2.5 min-w-[185px]"><div class="order-actions">
         <div class="order-action-top">
           ${unpaid&&!allDone?'<button onclick="openPay(\''+esc(o.ORDER_ID)+'\')" class="btn text-[10px] font-black bg-red-50 text-red-700 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-check mr-1"></i>LUNAS</button>':''}
@@ -148,13 +148,155 @@ async function loadDashboard(silent=false){
 
 function findItem(id){for(const o of orders){const i=(o.items||[]).find(x=>x.ITEM_ID===id);if(i)return{o,i}}return null}
 
+function orderMoneyValue(value){
+  const raw=String(value??'').trim();
+  if(!raw)return 0;
+  const n=Number(raw.replace(/[^\d-]/g,''));
+  return Number.isFinite(n)?n:0;
+}
+function getOrderTotalAmount(order){
+  const items=Array.isArray(order?.items)?order.items:[];
+  const hasItemAmounts=items.some(item=>item?.TAGIHAN!==undefined&&item?.TAGIHAN!==null&&String(item.TAGIHAN).trim()!=='');
+  return hasItemAmounts?items.reduce((sum,item)=>sum+orderMoneyValue(item.TAGIHAN),0):orderMoneyValue(order?.TOTAL_TAGIHAN);
+}
+function isInstitutionOrder(order){
+  return getOrderType(order?.ORDER_ID).type==='INSTANSI' ||
+    String(order?.JENIS_ORDER||'').toUpperCase()==='INSTANSI' ||
+    Boolean(String(order?.NAMA_INSTANSI||'').trim());
+}
+function getOrderUnit(order){
+  return isInstitutionOrder(order)?'pcs':'kg';
+}
+function parseOrderQuantity(value){
+  const raw=String(value??'').trim().replace(/,/g,'.').replace(/[^\d.-]/g,'');
+  const n=Number(raw);
+  return Number.isFinite(n)?n:0;
+}
+
 async function setStatus(item,status){if(!confirm('Ubah item menjadi '+status+'?'))return;try{await api('update_status',{ITEM_ID:item,STATUS:status});await loadDashboard(true);if(status==='SIAP')loadDeadline();toast('Status berhasil diperbarui')}catch(e){toast(e.message,false)}}
 
 async function markReady(item){if(!confirm('Tandai item sebagai SIAP?'))return;try{await api('ready_item',{ITEM_ID:item,STATUS:'SIAP'});await loadDashboard(true);await loadDeadline();toast('Item ditandai SIAP')}catch(e){toast(e.message,false)}}
 
-function editItem(id){const f=findItem(id);if(!f||f.o.STATUS==='SELESAI')return;const o=f.o,i=f.i;$('edit-item').value=id;$('edit-id').textContent='#'+o.ORDER_ID+' • '+id;$('edit-nama').value=o.NAMA;$('edit-wa').value=o.NO_WA;$('edit-paket').innerHTML=PACKAGES.map(p=>`<option ${p===i.PAKET?'selected':''}>${p}</option>`).join('');$('edit-berat').value=i.BERAT||'';$('edit-tagihan').value=i.TAGIHAN||'';$('editModal').classList.add('show')}
+function editItem(id){
+  const f=findItem(id);
+  if(!f)return toast('Item tidak ditemukan. Refresh dashboard lalu coba lagi.',false);
+  const o=f.o,i=f.i;
+  if(String(i.STATUS||'').toUpperCase()==='SELESAI')return toast('Item SELESAI tidak dapat diedit.',false);
 
-async function saveEdit(e){e.preventDefault();try{await api('order_edit',{ITEM_ID:$('edit-item').value,NAMA:$('edit-nama').value,NO_WA:$('edit-wa').value,PAKET:$('edit-paket').value,BERAT:$('edit-berat').value,TAGIHAN:$('edit-tagihan').value});closeModal('editModal');await loadDashboard(true);toast('Item diperbarui')}catch(e){toast(e.message,false)}}
+  const identity=getOrderType(o.ORDER_ID);
+  const instansi=identity.instansi||String(o.NAMA_INSTANSI||'').toUpperCase();
+  const inst=isInstitutionOrder(o);
+  const unit=inst?'pcs':'kg';
+  const catalog=inst?(INSTITUTION_CATALOG[instansi]?Object.keys(INSTITUTION_CATALOG[instansi]):[]):[...PACKAGES];
+  const current=String(i.PAKET||'');
+  if(current&&!catalog.includes(current))catalog.unshift(current);
+
+  $('edit-item').value=id;
+  $('edit-id').textContent='#'+o.ORDER_ID+' • '+id;
+  $('edit-nama').value=o.NAMA||'';
+  $('edit-wa').value=o.NO_WA||'';
+  $('edit-paket').innerHTML=catalog.map(p=>'<option value="'+esc(p)+'"'+(p===current?' selected':'')+'>'+esc(p)+'</option>').join('');
+  $('edit-paket').dataset.mode=inst?'INSTANSI':'REGULER';
+  $('edit-paket').dataset.instansi=instansi;
+  $('edit-paket-label').textContent=inst?'ITEM':'PAKET';
+  $('edit-berat-label').textContent=unit==='pcs'?'JUMLAH (PCS)':'BERAT (KG)';
+  const qty=$('edit-berat');
+  qty.dataset.int=unit==='pcs'?'1':'';
+  qty.inputMode=unit==='pcs'?'numeric':'decimal';
+  qty.value=unit==='pcs'?String(Math.round(parseOrderQuantity(i.BERAT))):String(i.BERAT??'');
+  $('edit-tagihan').value=String(orderMoneyValue(i.TAGIHAN)||'');
+  $('edit-help').textContent=inst
+    ?'Jumlah dihitung per PCS. Tagihan mengikuti tarif item instansi dan dihitung ulang saat item/jumlah berubah.'
+    :'Untuk order reguler, periksa dan sesuaikan tagihan secara manual jika paket atau berat berubah.';
+  editRecalc();
+  $('editModal').classList.add('show');
+  document.body.classList.add('overflow-hidden');
+}
+
+function editRecalc(){
+  const qtyField=$('edit-berat');
+  if(qtyField.dataset.int==='1'&&qtyField.value!==''){
+    const normalized=String(Math.max(0,Math.round(parseOrderQuantity(qtyField.value))));
+    if(qtyField.value!==normalized)qtyField.value=normalized;
+  }
+  const input=$('edit-tagihan');
+  const inst=$('edit-paket').dataset.mode==='INSTANSI';
+  const instansi=$('edit-paket').dataset.instansi||'';
+  const paket=$('edit-paket').value;
+  if(!inst){
+    input.readOnly=false;
+    input.classList.add('num-input');
+    return;
+  }
+  const price=Number(INSTITUTION_CATALOG[instansi]?.[paket]);
+  if(Number.isFinite(price)&&price>0){
+    const qty=Math.round(parseOrderQuantity(qtyField.value));
+    input.value=String(Math.max(0,qty)*price);
+    input.readOnly=true;
+    input.classList.remove('num-input');
+  }else{
+    input.readOnly=false;
+    input.classList.add('num-input');
+  }
+}
+
+async function saveEdit(e){
+  e.preventDefault();
+  const btn=$('editSaveBtn'),txt=$('editSaveText');
+  if(btn.disabled)return;
+  const id=$('edit-item').value,f=findItem(id);
+  if(!f)return toast('Item tidak ditemukan. Refresh dashboard lalu coba lagi.',false);
+  const o=f.o,old=f.i;
+  if(String(old.STATUS||'').toUpperCase()==='SELESAI')return toast('Item SELESAI tidak dapat diedit.',false);
+
+  const inst=isInstitutionOrder(o);
+  const unit=inst?'pcs':'kg';
+  const rawQty=parseOrderQuantity($('edit-berat').value);
+  const qty=unit==='pcs'?Math.round(rawQty):rawQty;
+  if(!(qty>0))return toast((unit==='pcs'?'Jumlah (PCS)':'Berat (KG)')+' harus lebih dari 0.',false);
+
+  const paket=$('edit-paket').value;
+  let bill=orderMoneyValue($('edit-tagihan').value);
+  const identity=getOrderType(o.ORDER_ID);
+  const instansi=identity.instansi||String(o.NAMA_INSTANSI||$('edit-paket').dataset.instansi||'').toUpperCase();
+  const price=Number(INSTITUTION_CATALOG[instansi]?.[paket]);
+  if(inst&&Number.isFinite(price)&&price>0)bill=qty*price;
+  if(!(bill>0))return toast('Tagihan harus lebih dari 0.',false);
+
+  const nama=$('edit-nama').value.trim()||'TANPA NAMA';
+  const wa=$('edit-wa').value.trim();
+  const nameOrWaChanged=nama!==String(o.NAMA||'TANPA NAMA')||wa!==String(o.NO_WA||'');
+  btn.disabled=true;
+  if(txt)txt.textContent='Menyimpan...';
+  let syncFailed=false;
+  try{
+    await api('order_edit',{
+      ITEM_ID:id,NAMA:nama,NO_WA:wa,PAKET:paket,
+      BERAT:String(qty),
+      TAGIHAN:String(Math.round(bill))
+    });
+    if(nameOrWaChanged){
+      for(const sibling of (o.items||[])){
+        if(sibling.ITEM_ID===id||String(sibling.STATUS||'').toUpperCase()==='SELESAI')continue;
+        try{
+          await api('order_edit',{ITEM_ID:sibling.ITEM_ID,NAMA:nama,NO_WA:wa});
+        }catch(err){
+          syncFailed=true;
+          console.error('Gagal menyinkronkan nama/WA item '+sibling.ITEM_ID,err);
+        }
+      }
+    }
+    closeModal('editModal');
+    await loadDashboard(true);
+    if(syncFailed)toast('Perubahan item tersimpan, tetapi nama/WA pada sebagian item lain gagal diperbarui. Refresh dan periksa kembali.',false);
+    else toast('Item diperbarui • Tagihan '+rupiah(bill));
+  }catch(err){
+    toast('Gagal menyimpan perubahan: '+err.message,false);
+  }finally{
+    btn.disabled=false;
+    if(txt)txt.textContent='Simpan Perubahan';
+  }
+}
 
 function openPay(id){payOrder=id;$('payModal').classList.add('show')}
 
