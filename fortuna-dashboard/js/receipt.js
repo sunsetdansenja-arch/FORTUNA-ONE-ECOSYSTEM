@@ -8,7 +8,7 @@ function receiptDateTime(value){
 
 function receiptHTML(o){
   const items=Array.isArray(o.items)?o.items:[];
-  const total=items.reduce((s,x)=>s+(Number(String(x.TAGIHAN||'').replace(/[^0-9.-]/g,''))||0),0);
+  const total=typeof getOrderTotalAmount==='function'?getOrderTotalAmount(o):items.reduce((s,x)=>s+(Number(String(x.TAGIHAN||'').replace(/[^0-9.-]/g,''))||0),0);
   const dt=o.START?receiptDateTime(o.START):new Date();
   const date=isNaN(dt.getTime())?new Date().toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):dt.toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
   const paymentStatus=String(o.STATUS_PEMBAYARAN||'BELUM LUNAS').toUpperCase();
@@ -26,7 +26,7 @@ function receiptHTML(o){
     <div class="row" style="margin-top:6px"><span>${esc(date)}</span><b>#${esc(o.ORDER_ID||'PREVIEW')}</b></div>
     <div style="font-weight:800;margin-top:2px">${esc(o.NAMA||'-')}</div>
     <hr>
-    ${items.map((x,i)=>`<div class="item"><div class="item-name">${i+1}. ${esc(x.PAKET||'-')}</div><div class="item-meta"><span>${esc(x.BERAT||'0')}Kg</span><span>${rupiah(x.TAGIHAN)}</span></div></div>`).join('')}
+    ${items.map((x,i)=>`<div class="item"><div class="item-name">${i+1}. ${esc(x.PAKET||'-')}</div><div class="item-meta"><span>${esc(x.BERAT||'0')} ${typeof getOrderUnit==='function'?getOrderUnit(o):'kg'}</span><span>${rupiah(x.TAGIHAN)}</span></div></div>`).join('')}
     <hr>
     <div class="row total"><span>Total</span><span>${rupiah(total)}</span></div>
     <div style="text-align:right;font-size:10px">${esc(paymentStatus)}${o.METODE_TRANSAKSI&&o.METODE_TRANSAKSI!=='BELUM LUNAS'?` • ${esc(o.METODE_TRANSAKSI)}`:''}</div>
