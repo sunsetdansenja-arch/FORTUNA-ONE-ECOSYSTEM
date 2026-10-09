@@ -2,24 +2,24 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Fortuna Laundry — Operasional V10.5</title>
+<title>Fortuna Laundry — Operasional V10.6</title>
 <script src="https://cdn.tailwindcss.com"></script><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body>
 <div class="layout">
 <aside class="sidebar bg-white border-r border-slate-200 p-4 flex flex-col">
-  <div class="brand px-3 py-4 flex items-center gap-3"><div class="brand-main text-[11px] font-black tracking-[.2em] text-[#0F5A47]">FORTUNA</div><div class="brand-sub"><div class="font-extrabold text-lg leading-none">Laundry</div></div></div>
+  <div class="brand"><div class="brand-logo">F</div><div class="brand-text"><b>FORTUNA</b><span>Laundry</span></div></div>
   <nav class="space-y-2 mt-3">
     <button onclick="showTab('ops')" data-tab="ops" class="navbtn nav-active w-full text-left rounded-xl px-4 py-3 font-bold text-sm flex items-center"><i class="fa-solid fa-table-columns w-5"></i><span class="sidebar-label">Operasional Dashboard</span></button>
     <button onclick="showTab('deadline')" data-tab="deadline" class="navbtn w-full text-left rounded-xl px-4 py-3 font-bold text-sm flex items-center"><i class="fa-solid fa-clock w-5"></i><span class="sidebar-label">Deadline Dashboard</span></button>
     <button onclick="showTab('expense')" data-tab="expense" class="navbtn w-full text-left rounded-xl px-4 py-3 font-bold text-sm flex items-center"><i class="fa-solid fa-money-bill-wave w-5"></i><span class="sidebar-label">Log Finance</span></button>
   </nav>
-  <div class="mt-auto p-3 text-[10px] text-slate-400 font-semibold sidebar-foot">Fortuna Laundry V10.5</div>
+  <div class="mt-auto p-3 text-[10px] text-slate-400 font-semibold sidebar-foot">Fortuna Laundry V10.6</div>
 </aside>
 <div class="min-w-0">
 <header class="sticky top-0 z-30 bg-[#f5f3ef]/95 backdrop-blur border-b border-[#e5e1da]">
- <div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3"><div class="flex items-center gap-3"><button id="navToggle" onclick="toggleNav()" class="nav-toggle btn bg-white border border-slate-200 rounded-xl w-10 h-10" aria-label="Buka/tutup navigasi"><i id="navToggleIcon" class="fa-solid fa-bars-staggered"></i></button><div><div class="text-[10px] font-black tracking-[.18em] text-[#0F5A47] uppercase">Fortuna Laundry</div><h1 id="title" class="text-xl sm:text-2xl font-extrabold mt-1">Operasional Dashboard</h1></div></div><div class="flex gap-2"><button id="printerBtn" onclick="connectPrinter()" class="btn bg-white border border-slate-200 rounded-xl px-3 py-2.5 font-bold text-sm"><i id="printerIcon" class="fa-solid fa-print mr-1"></i><span id="printerText">Hubungkan ke printer</span></button><button id="globalRefreshBtn" onclick="refreshActiveTab()" class="btn bg-white border border-slate-200 rounded-xl px-3 py-2.5 font-bold text-sm"><i id="globalRefreshIcon" class="fa-solid fa-rotate-right mr-1"></i>Refresh</button></div></div>
+ <div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3"><div class="flex items-center gap-3 min-w-0"><button id="navToggle" onclick="toggleNav()" class="nav-toggle btn bg-white border border-slate-200 rounded-xl w-10 h-10" aria-label="Buka/tutup navigasi"><i id="navToggleIcon" class="fa-solid fa-bars-staggered"></i></button><div class="min-w-0"><div class="text-[10px] font-black tracking-[.18em] text-[#0F5A47] uppercase">Fortuna Laundry</div><h1 id="title" class="text-xl sm:text-2xl font-extrabold leading-tight mt-1 truncate">Operasional Dashboard</h1></div></div><div class="flex gap-2 shrink-0"><button id="printerBtn" onclick="connectPrinter()" class="btn bg-white border border-slate-200 rounded-xl px-3 py-2.5 font-bold text-sm" title="Hubungkan printer Bluetooth"><i id="printerIcon" class="fa-solid fa-print mr-1"></i><span id="printerText" class="hidden sm:inline">Hubungkan ke printer</span></button><button id="globalRefreshBtn" onclick="refreshActiveTab()" class="btn bg-white border border-slate-200 rounded-xl px-3 py-2.5 font-bold text-sm" title="Refresh data"><i id="globalRefreshIcon" class="fa-solid fa-rotate-right mr-1"></i><span class="hidden sm:inline">Refresh</span></button></div></div>
 </header>
 
 <main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-5">
