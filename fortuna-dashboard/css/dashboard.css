@@ -554,3 +554,48 @@ body {
     font-size: 10px !important;
   }
 }
+
+
+/* UI/UX port dari Fortuna Laundry V10.6 */
+:root {
+  --brand: #0F5A47;
+  --app-bg: #f5f3ef;
+  --app-line: #e5e1da;
+}
+* { -webkit-tap-highlight-color: transparent; }
+.brand { padding: .75rem .5rem; display:flex; align-items:center; gap:.75rem; min-width:0; }
+.brand-logo {
+  width:40px; height:40px; border-radius:12px; background:var(--brand); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-weight:900; font-size:1.1rem; flex:none;
+}
+.brand-text { line-height:1.1; min-width:0; }
+.brand-text b { display:block; font-size:11px; letter-spacing:.2em; color:var(--brand); font-weight:900; }
+.brand-text span { display:block; font-weight:800; font-size:1.1rem; }
+.btn { user-select:none; }
+.btn:hover:not(:disabled) { filter:brightness(.98); }
+.btn:focus-visible, .navbtn:focus-visible, .order-mode-card:focus-visible, .summary-filter:focus-visible, .icon-btn:focus-visible {
+  outline:3px solid rgba(15,90,71,.3); outline-offset:2px;
+}
+.btn:disabled, .icon-btn:disabled { opacity:.55; pointer-events:none; }
+.navbtn { transition:background .15s,color .15s; }
+.navbtn:hover:not(.nav-active) { background:#f1f5f9; }
+.order-mode-card { transition:border-color .15s,background .15s,box-shadow .15s; }
+.order-mode-card:hover { box-shadow:0 5px 18px rgba(15,90,71,.07); }
+.order-mode-card.active { border-color:var(--brand); background:#ecf6f2; }
+.summary-filter { transition:border-color .15s,background .15s,box-shadow .15s; }
+.summary-filter:hover { background:#fafcfb; }
+.summary-filter.active { border-color:var(--brand); background:#f3faf7; }
+.modal-box { max-height:calc(100dvh - 24px); overflow-y:auto; overscroll-behavior:contain; }
+#printerBtn, #globalRefreshBtn { white-space:nowrap; }
+@media (min-width:900px) {
+  .layout.sidebar-collapsed .brand-text { display:none; }
+  .layout.sidebar-collapsed .brand { justify-content:center; padding-left:0; padding-right:0; }
+}
+@media (max-width:899px) {
+  .brand { padding:.75rem .25rem; }
+  .brand-text span { font-size:1rem; }
+  header > div > div:first-child { min-width:0; }
+  header #title { max-width:48vw; }
+  #printerBtn, #globalRefreshBtn { white-space:normal; }
+}
+
