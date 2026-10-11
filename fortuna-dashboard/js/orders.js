@@ -134,6 +134,7 @@ function renderOrders(){
           ${unpaid&&!allDone?'<button onclick="openPay(\''+esc(o.ORDER_ID)+'\')" class="btn text-[10px] font-black bg-red-50 text-red-700 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-check mr-1"></i>LUNAS</button>':''}
           <button onclick="printOrder('${esc(o.ORDER_ID)}')" title="Print" class="btn text-slate-600 bg-slate-100 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-print"></i></button>
           <button onclick="waOrder('${esc(o.ORDER_ID)}')" title="WhatsApp" class="btn text-emerald-700 bg-emerald-50 rounded-lg px-2.5 py-1.5"><i class="fa-brands fa-whatsapp"></i></button>
+          <button onclick="deleteOrder('${esc(o.ORDER_ID)}')" title="Hapus order permanen" class="btn text-red-700 bg-red-50 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-trash"></i></button>
         </div>
         ${!allDone&&itemActions?'<div class="order-action-status">'+itemActions+'</div>':''}
       </div></td>
@@ -173,6 +174,36 @@ async function loadDashboard(silent=false){
     renderOrders();
     if(!silent)toast('Data berhasil diperbarui')
   }catch(e){toast('Gagal memuat dashboard: '+e.message,false)}
+}
+
+const deletingOrderIds=new Set();
+
+async function deleteOrder(id){
+  const order=(orders||[]).find(o=>String(o.ORDER_ID)===String(id));
+  if(!order)return toast('Order tidak ditemukan. Refresh dashboard lalu coba lagi.',false);
+  if(deletingOrderIds.has(String(id)))return;
+  const itemCount=Array.isArray(order.items)?order.items.length:0;
+  const approved=confirm(
+    'HAPUS ORDER PERMANEN?\\n\\n'+
+    'Order: #'+id+'\\n'+
+    'Pelanggan: '+(order.NAMA||'-')+'\\n'+
+    'Jumlah item: '+itemCount+'\\n\\n'+
+    'Semua baris order ini akan dihapus dari backend dan tidak bisa dipulihkan dari dashboard. Lanjutkan?'
+  );
+  if(!approved)return;
+  deletingOrderIds.add(String(id));
+  renderOrders();
+  try{
+    await api('delete_order',{ORDER_ID:id});
+    await loadDashboard(true);
+    await loadDeadline();
+    toast('Permintaan hapus order #'+id+' dikirim. Periksa daftar order untuk memastikan data sudah hilang.');
+  }catch(e){
+    toast('Gagal menghapus order #'+id+': '+e.message,false);
+  }finally{
+    deletingOrderIds.delete(String(id));
+    renderOrders();
+  }
 }
 
 function findItem(id){for(const o of orders){const i=(o.items||[]).find(x=>x.ITEM_ID===id);if(i)return{o,i}}return null}
