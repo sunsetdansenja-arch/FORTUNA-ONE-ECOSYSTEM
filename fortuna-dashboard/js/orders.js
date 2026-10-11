@@ -184,10 +184,10 @@ async function deleteOrder(id){
   if(deletingOrderIds.has(String(id)))return;
   const itemCount=Array.isArray(order.items)?order.items.length:0;
   const approved=confirm(
-    'HAPUS ORDER PERMANEN?\\n\\n'+
-    'Order: #'+id+'\\n'+
-    'Pelanggan: '+(order.NAMA||'-')+'\\n'+
-    'Jumlah item: '+itemCount+'\\n\\n'+
+    'HAPUS ORDER PERMANEN?\n\n'+
+    'Order: #'+id+'\n'+
+    'Pelanggan: '+(order.NAMA||'-')+'\n'+
+    'Jumlah item: '+itemCount+'\n\n'+
     'Semua baris order ini akan dihapus dari backend dan tidak bisa dipulihkan dari dashboard. Lanjutkan?'
   );
   if(!approved)return;
