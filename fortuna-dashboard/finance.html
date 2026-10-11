@@ -518,7 +518,7 @@ function buildBillingReport(){
   $("printReport").querySelectorAll(".print-section")[0].classList.add("billing-hide");
   $("printReport").querySelectorAll(".print-section")[2].classList.add("billing-hide");
   $("printReport").querySelector(".print-title").textContent="FORTUNA — TAGIHAN";
-  $("printMeta").innerHTML="Periode: <strong>"+esc($("dateFrom").value?formatDate($("dateFrom").value):"Awal data")+" — "+esc($("dateTo").value?formatDate($("dateTo").value):"Hari ini"))+"</strong><br>"+esc(billingLabel())+"<br>Dicetak: "+esc(new Date().toLocaleString("id-ID"));
+  $("printMeta").innerHTML="Periode: <strong>"+esc($("dateFrom").value?formatDate($("dateFrom").value):"Awal data")+" — "+esc($("dateTo").value?formatDate($("dateTo").value):"Hari ini")+"</strong><br>"+esc(billingLabel())+"<br>Dicetak: "+esc(new Date().toLocaleString("id-ID"));
   $("printKpis").innerHTML=[["Jumlah Order",String(os.length)+" order"],["Total Tagihan",rupiah(total)]].map(x=>"<div class='print-kpi'><div class='k'>"+x[0]+"</div><div class='v'>"+x[1]+"</div></div>").join("");
   $("printSalesBody").innerHTML=os.length?os.map(o=>{const p=String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS",m=String(o.METODE_TRANSAKSI||"BELUM LUNAS").toUpperCase();return"<tr><td>"+formatDate(o.START)+"</td><td>#"+esc(o.ORDER_ID)+"</td><td>"+esc(o.NAMA)+"</td><td>"+esc(o.PAKET||"-")+"</td><td>"+esc(m)+"</td><td>"+(p?"LUNAS":"BELUM LUNAS")+"</td><td class='print-right'>"+rupiah(financeOrderTotal(o))+"</td></tr>"}).join(""):"<tr><td colspan='7'>Tidak ada transaksi pada filter ini.</td></tr>";
   $("printMethods").innerHTML="";
