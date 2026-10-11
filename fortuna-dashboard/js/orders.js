@@ -9,7 +9,7 @@ const INSTITUTION_CATALOG={
 };
 function institutionFixedPackage(instansi,paket){
   const name=String(paket||'').trim().toUpperCase();
-  return (instansi==='SECATA'&&['PDL SET','EXPRESS 1'].includes(name))||
+  return (instansi==='SECATA'&&name==='PDL SET')||
     (instansi==='SECABA'&&name==='EXPRESS 1');
 }
 function institutionPackagePrice(instansi,paket){
@@ -19,7 +19,6 @@ function institutionPackagePrice(instansi,paket){
 }
 function institutionPackageSize(instansi,paket){
   if(instansi==='SECATA'&&String(paket||'').trim().toUpperCase()==='PDL SET')return 2;
-  if(instansi==='SECATA'&&String(paket||'').trim().toUpperCase()==='EXPRESS 1')return 2;
   if(instansi==='SECABA'&&String(paket||'').trim().toUpperCase()==='EXPRESS 1')return 5;
   return 1;
 }
