@@ -3,10 +3,30 @@
 function normalize(o){return o}
 
 const INSTITUTION_CATALOG={
-  SECATA:{'EXPRESS 1':'20000','KAOS':'2000','KAOS KAKI':'2000','CELANA PENDEK':'2000','CD':'2000'},
+  SECATA:{'PDL SET':'20000','KAOS':'2000','KAOS KAKI':'2000','CELANA PENDEK':'2000','CD':'2000'},
   SECABA:{'EXPRESS 1':'25000','KAOS':'3000','KAOS KAKI':'3000','CELANA PENDEK':'3000','CD':'3000'},
   PUSPOMAD:{'EXPRESS 1':'15000','+ HANGER':'5000'}
 };
+function institutionFixedPackage(instansi,paket){
+  const name=String(paket||'').trim().toUpperCase();
+  return (instansi==='SECATA'&&['PDL SET','EXPRESS 1'].includes(name))||
+    (instansi==='SECABA'&&name==='EXPRESS 1');
+}
+function institutionPackagePrice(instansi,paket){
+  if(instansi==='SECATA'&&String(paket||'').trim().toUpperCase()==='EXPRESS 1')return 20000;
+  const value=Number(INSTITUTION_CATALOG[instansi]?.[paket]);
+  return Number.isFinite(value)&&value>0?value:0;
+}
+function institutionDefaultQuantity(instansi,paket){
+  if(instansi==='SECATA'&&String(paket||'').trim().toUpperCase()==='PDL SET')return 2;
+  if(instansi==='SECABA'&&String(paket||'').trim().toUpperCase()==='EXPRESS 1')return 5;
+  return 1;
+}
+function institutionItemAmount(instansi,paket,quantity){
+  const price=institutionPackagePrice(instansi,paket);
+  if(!price)return 0;
+  return institutionFixedPackage(instansi,paket)?price:Math.max(0,Math.round(Number(quantity)||0))*price;
+}
 function institutionItems(){
   const inst=$('f-instansi')?.value||'SECATA';
   return Object.entries(INSTITUTION_CATALOG[inst]||{}).map(([name,price])=>({name,price}));
@@ -14,11 +34,14 @@ function institutionItems(){
 function addPackage(data={}){
   const row=document.createElement('div');row.className='package-row';
   if(orderMode==='INSTANSI'){
+    const inst=$('f-instansi')?.value||'SECATA';
     const items=institutionItems();
-    row.innerHTML=`<div class="flex gap-2"><select class="input package flex-1">${items.map((p,i)=>`<option value="${esc(p.name)}" data-price="${p.price}" ${p.name===(data.PAKET||items[0]?.name)?'selected':''}>${esc(p.name)}</option>`).join('')}</select><button type="button" onclick="this.closest('.package-row').remove();calcTotal()" class="w-10 rounded-xl bg-red-50 text-red-600"><i class="fa-solid fa-trash"></i></button></div><div class="grid grid-cols-2 gap-2 mt-2"><input class="input weight num-input" data-int="1" inputmode="numeric" value="${esc(data.BERAT||1)}" placeholder="Jumlah"><input class="input amount num-input bg-slate-50" inputmode="numeric" value="${esc(data.TAGIHAN||items[0]?.price||0)}" placeholder="Harga" readonly></div>`;
+    const selectedName=data.PAKET||items[0]?.name;
+    const defaultQty=data.BERAT!==undefined&&data.BERAT!==null&&data.BERAT!==''?data.BERAT:institutionDefaultQuantity(inst,selectedName);
+    row.innerHTML=`<div class="flex gap-2"><select class="input package flex-1">${items.map((p,i)=>`<option value="${esc(p.name)}" data-price="${p.price}" ${p.name===selectedName?'selected':''}>${esc(p.name)}</option>`).join('')}</select><button type="button" onclick="this.closest('.package-row').remove();calcTotal()" class="w-10 rounded-xl bg-red-50 text-red-600"><i class="fa-solid fa-trash"></i></button></div><div class="grid grid-cols-2 gap-2 mt-2"><input class="input weight num-input" data-int="1" inputmode="numeric" value="${esc(defaultQty)}" placeholder="Jumlah (PCS)"><input class="input amount num-input bg-slate-50" inputmode="numeric" value="${esc(data.TAGIHAN||institutionItemAmount(inst,selectedName,defaultQty))}" placeholder="Harga" readonly></div>`;
     $('packageRows').appendChild(row);
     const select=row.querySelector('.package'), qty=row.querySelector('.weight'), amount=row.querySelector('.amount');
-    const sync=()=>{const p=items.find(x=>x.name===select.value);const n=Number(String(qty.value||'').replace(',','.'));const count=qty.value!==''&&Number.isFinite(n)?Math.max(0,Math.round(n)):0;if(qty.value!==''&&qty.value!==String(count))qty.value=String(count);amount.value=count*(Number(p?.price)||0);calcTotal()};
+    const sync=()=>{const n=Number(String(qty.value||'').replace(',','.'));const count=qty.value!==''&&Number.isFinite(n)?Math.max(0,Math.round(n)):0;if(qty.value!==''&&qty.value!==String(count))qty.value=String(count);amount.value=institutionItemAmount(inst,select.value,count);calcTotal()};
     select.addEventListener('change',sync);qty.addEventListener('input',sync);sync();
   }else{
     row.innerHTML=`<div class="flex gap-2"><select class="input package flex-1">${PACKAGES.map(p=>`<option ${p===(data.PAKET||'FLEKSIBEL')?'selected':''}>${p}</option>`).join('')}</select><button type="button" onclick="this.closest('.package-row').remove();calcTotal()" class="w-10 rounded-xl bg-red-50 text-red-600"><i class="fa-solid fa-trash"></i></button></div><div class="grid grid-cols-2 gap-2 mt-2"><input class="input weight num-input" inputmode="decimal" value="${esc(data.BERAT||'')}" placeholder="Berat (kg)"><input class="input amount num-input" inputmode="decimal" value="${esc(data.TAGIHAN||'')}" placeholder="Tagihan"></div>`;
@@ -206,7 +229,7 @@ function editItem(id){
   qty.value=unit==='pcs'?String(Math.round(parseOrderQuantity(i.BERAT))):String(i.BERAT??'');
   $('edit-tagihan').value=String(orderMoneyValue(i.TAGIHAN)||'');
   $('edit-help').textContent=inst
-    ?'Jumlah dihitung per PCS. Tagihan mengikuti tarif item instansi dan dihitung ulang saat item/jumlah berubah.'
+    ?'Tarif dihitung otomatis. PDL SET SECATA Rp20.000/set isi standar 2 PCS; EXPRESS 1 SECABA Rp25.000/paket isi standar 5 PCS. Item instansi lain dihitung per PCS.'
     :'Untuk order reguler, periksa dan sesuaikan tagihan secara manual jika paket atau berat berubah.';
   editRecalc();
   $('editModal').classList.add('show');
@@ -228,10 +251,10 @@ function editRecalc(){
     input.classList.add('num-input');
     return;
   }
-  const price=Number(INSTITUTION_CATALOG[instansi]?.[paket]);
-  if(Number.isFinite(price)&&price>0){
+  const price=institutionPackagePrice(instansi,paket);
+  if(price>0){
     const qty=Math.round(parseOrderQuantity(qtyField.value));
-    input.value=String(Math.max(0,qty)*price);
+    input.value=String(institutionItemAmount(instansi,paket,qty));
     input.readOnly=true;
     input.classList.remove('num-input');
   }else{
@@ -259,8 +282,8 @@ async function saveEdit(e){
   let bill=orderMoneyValue($('edit-tagihan').value);
   const identity=getOrderType(o.ORDER_ID);
   const instansi=identity.instansi||String(o.NAMA_INSTANSI||$('edit-paket').dataset.instansi||'').toUpperCase();
-  const price=Number(INSTITUTION_CATALOG[instansi]?.[paket]);
-  if(inst&&Number.isFinite(price)&&price>0)bill=qty*price;
+  const price=institutionPackagePrice(instansi,paket);
+  if(inst&&price>0)bill=institutionItemAmount(instansi,paket,qty);
   if(!(bill>0))return toast('Tagihan harus lebih dari 0.',false);
 
   const nama=$('edit-nama').value.trim()||'TANPA NAMA';
