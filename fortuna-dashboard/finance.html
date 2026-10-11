@@ -304,6 +304,11 @@ function financeOrderType(orderId){
   if(id.startsWith("PUSPOMAD-"))return{type:"INSTANSI",instansi:"PUSPOMAD"};
   return{type:"REGULER",instansi:""};
 }
+function financeOrderTotal(order){
+  const items=Array.isArray(order&&order.items)?order.items:[];
+  const hasItemAmounts=items.some(item=>item&&item.TAGIHAN!==undefined&&item.TAGIHAN!==null&&String(item.TAGIHAN).trim()!=="");
+  return hasItemAmounts?items.reduce((sum,item)=>sum+num(item.TAGIHAN),0):num(order&&order.TOTAL_TAGIHAN);
+}
 function syncInstitutionFilter(){
   const type=$("orderTypeFilter").value;
   const field=$("institutionField");
@@ -336,9 +341,9 @@ function render(){
   const os=state.filteredOrders,es=state.filteredExpenses;
   const paid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS");
   const unpaid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()!=="LUNAS");
-  const sales=os.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0);
-  const cash=paid.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0);
-  const due=unpaid.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0);
+  const sales=os.reduce((s,o)=>s+financeOrderTotal(o),0);
+  const cash=paid.reduce((s,o)=>s+financeOrderTotal(o),0);
+  const due=unpaid.reduce((s,o)=>s+financeOrderTotal(o),0);
   const exp=es.reduce((s,e)=>s+num(e.NOMINAL),0);
   $("totalSales").textContent=rupiah(sales);
   $("totalPaid").textContent=rupiah(cash);
@@ -346,7 +351,7 @@ function render(){
   $("totalExpense").textContent=rupiah(exp);
   $("netBalance").textContent=rupiah(cash-exp);
   const methods={CASH:0,QRIS:0,TRANSFER:0};
-  paid.forEach(o=>{const m=String(o.METODE_TRANSAKSI||"").toUpperCase();if(methods[m]!==undefined)methods[m]+=num(o.TOTAL_TAGIHAN)});
+  paid.forEach(o=>{const m=String(o.METODE_TRANSAKSI||"").toUpperCase();if(methods[m]!==undefined)methods[m]+=financeOrderTotal(o)});
   $("cashTotal").textContent=rupiah(methods.CASH);
   $("qrisTotal").textContent=rupiah(methods.QRIS);
   $("transferTotal").textContent=rupiah(methods.TRANSFER);
@@ -356,9 +361,9 @@ function render(){
   $("salesBody").innerHTML=os.length?os.map(o=>{
     const p=String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS";
     const m=String(o.METODE_TRANSAKSI||"BELUM LUNAS").toUpperCase();
-    return "<tr><td>"+formatDate(o.START)+"</td><td><strong>#"+esc(o.ORDER_ID)+"</strong></td><td>"+esc(o.NAMA)+"</td><td>"+esc(o.PAKET||"-")+"</td><td><span class='badge "+m.toLowerCase().replace(/\s/g,"-")+"'>"+esc(m)+"</span></td><td><span class='badge "+(p?"paid":"unpaid")+"'>"+(p?"LUNAS":"BELUM LUNAS")+"</span></td><td class='amount'>"+rupiah(o.TOTAL_TAGIHAN)+"</td></tr>";
+    return "<tr><td>"+formatDate(o.START)+"</td><td><strong>#"+esc(o.ORDER_ID)+"</strong></td><td>"+esc(o.NAMA)+"</td><td>"+esc(o.PAKET||"-")+"</td><td><span class='badge "+m.toLowerCase().replace(/\s/g,"-")+"'>"+esc(m)+"</span></td><td><span class='badge "+(p?"paid":"unpaid")+"'>"+(p?"LUNAS":"BELUM LUNAS")+"</span></td><td class='amount'>"+rupiah(financeOrderTotal(o))+"</td></tr>";
   }).join(""):"<tr><td colspan='7' class='empty'>Tidak ada transaksi pada filter ini.</td></tr>";
-  $("unpaidBody").innerHTML=unpaid.length?unpaid.map(o=>"<tr><td><strong>#"+esc(o.ORDER_ID)+"</strong></td><td>"+esc(o.NAMA)+"</td><td class='amount'>"+rupiah(o.TOTAL_TAGIHAN)+"</td><td><button class='btn small primary' onclick=\"openPayment('"+esc(o.ORDER_ID)+"')\">Lunasi</button></td></tr>").join(""):"<tr><td colspan='4' class='empty'>Tidak ada piutang pada filter ini.</td></tr>";
+  $("unpaidBody").innerHTML=unpaid.length?unpaid.map(o=>"<tr><td><strong>#"+esc(o.ORDER_ID)+"</strong></td><td>"+esc(o.NAMA)+"</td><td class='amount'>"+rupiah(financeOrderTotal(o))+"</td><td><button class='btn small primary' onclick=\"openPayment('"+esc(o.ORDER_ID)+"')\">Lunasi</button></td></tr>").join(""):"<tr><td colspan='4' class='empty'>Tidak ada piutang pada filter ini.</td></tr>";
   renderExpenseLedger();
 }
 async function openPayment(id){
@@ -491,22 +496,22 @@ function buildPrintReport(){
   const os=state.filteredOrders,es=state.filteredExpenses;
   const paid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS");
   const unpaid=os.filter(o=>String(o.STATUS_PEMBAYARAN||"").toUpperCase()!=="LUNAS");
-  const sales=os.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0);
-  const totalPaid=paid.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0);
-  const totalUnpaid=unpaid.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0);
+  const sales=os.reduce((s,o)=>s+financeOrderTotal(o),0);
+  const totalPaid=paid.reduce((s,o)=>s+financeOrderTotal(o),0);
+  const totalUnpaid=unpaid.reduce((s,o)=>s+financeOrderTotal(o),0);
   const expense=es.reduce((s,e)=>s+num(e.NOMINAL),0);
   const methods={CASH:0,QRIS:0,TRANSFER:0};
-  paid.forEach(o=>{const m=String(o.METODE_TRANSAKSI||"").toUpperCase();if(methods[m]!==undefined)methods[m]+=num(o.TOTAL_TAGIHAN)});
+  paid.forEach(o=>{const m=String(o.METODE_TRANSAKSI||"").toUpperCase();if(methods[m]!==undefined)methods[m]+=financeOrderTotal(o)});
   $("printMeta").innerHTML="Periode: <strong>"+esc(filterLabel())+"</strong><br>Dicetak: "+esc(new Date().toLocaleString("id-ID"));
   $("printKpis").innerHTML=[["Total Penjualan",rupiah(sales)],["Sudah Dibayar",rupiah(totalPaid)],["Belum Lunas",rupiah(totalUnpaid)],["Pengeluaran",rupiah(expense)],["Saldo Bersih",rupiah(totalPaid-expense)]].map(x=>"<div class='print-kpi'><div class='k'>"+x[0]+"</div><div class='v'>"+x[1]+"</div></div>").join("");
   $("printMethods").innerHTML="<td>"+rupiah(methods.CASH)+"</td><td>"+rupiah(methods.QRIS)+"</td><td>"+rupiah(methods.TRANSFER)+"</td>";
-  $("printSalesBody").innerHTML=os.length?os.map(o=>{const p=String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS",m=String(o.METODE_TRANSAKSI||"BELUM LUNAS").toUpperCase();return"<tr><td>"+formatDate(o.START)+"</td><td>#"+esc(o.ORDER_ID)+"</td><td>"+esc(o.NAMA)+"</td><td>"+esc(o.PAKET||"-")+"</td><td>"+esc(m)+"</td><td>"+(p?"LUNAS":"BELUM LUNAS")+"</td><td class='print-right'>"+rupiah(o.TOTAL_TAGIHAN)+"</td></tr>"}).join(""):"<tr><td colspan='7'>Tidak ada transaksi pada filter ini.</td></tr>";
+  $("printSalesBody").innerHTML=os.length?os.map(o=>{const p=String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS",m=String(o.METODE_TRANSAKSI||"BELUM LUNAS").toUpperCase();return"<tr><td>"+formatDate(o.START)+"</td><td>#"+esc(o.ORDER_ID)+"</td><td>"+esc(o.NAMA)+"</td><td>"+esc(o.PAKET||"-")+"</td><td>"+esc(m)+"</td><td>"+(p?"LUNAS":"BELUM LUNAS")+"</td><td class='print-right'>"+rupiah(financeOrderTotal(o))+"</td></tr>"}).join(""):"<tr><td colspan='7'>Tidak ada transaksi pada filter ini.</td></tr>";
   $("printExpenseBody").innerHTML=es.length?es.map(e=>"<tr><td>"+formatDate(e.TANGGAL)+"</td><td>"+esc(e.KETERANGAN||"-")+"</td><td>"+esc(String(e.KATEGORI||"LAINNYA").toUpperCase())+"</td><td>"+esc(String(e.METODE_TRANSAKSI||"CASH").toUpperCase())+"</td><td class='print-right'>"+rupiah(e.NOMINAL)+"</td></tr>").join(""):"<tr><td colspan='5'>Belum ada pengeluaran pada filter ini.</td></tr>";
   $("printTimestamp").textContent="Dicetak "+new Date().toLocaleString("id-ID");
 }
 function buildBillingReport(){
   const os=state.filteredOrders;
-  const total=os.reduce((s,o)=>s+num(o.TOTAL_TAGIHAN),0);
+  const total=os.reduce((s,o)=>s+financeOrderTotal(o),0);
   const print=$("printReport");
   print.classList.add("billing-mode");
   $("printReport").querySelectorAll(".print-section").forEach(e=>e.classList.remove("billing-hide"));
@@ -515,7 +520,7 @@ function buildBillingReport(){
   $("printReport").querySelector(".print-title").textContent="FORTUNA — TAGIHAN";
   $("printMeta").innerHTML="Periode: <strong>"+esc($("dateFrom").value?formatDate($("dateFrom").value):"Awal data")+" — "+esc($("dateTo").value?formatDate($("dateTo").value):"Hari ini"))+"</strong><br>"+esc(billingLabel())+"<br>Dicetak: "+esc(new Date().toLocaleString("id-ID"));
   $("printKpis").innerHTML=[["Jumlah Order",String(os.length)+" order"],["Total Tagihan",rupiah(total)]].map(x=>"<div class='print-kpi'><div class='k'>"+x[0]+"</div><div class='v'>"+x[1]+"</div></div>").join("");
-  $("printSalesBody").innerHTML=os.length?os.map(o=>{const p=String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS",m=String(o.METODE_TRANSAKSI||"BELUM LUNAS").toUpperCase();return"<tr><td>"+formatDate(o.START)+"</td><td>#"+esc(o.ORDER_ID)+"</td><td>"+esc(o.NAMA)+"</td><td>"+esc(o.PAKET||"-")+"</td><td>"+esc(m)+"</td><td>"+(p?"LUNAS":"BELUM LUNAS")+"</td><td class='print-right'>"+rupiah(o.TOTAL_TAGIHAN)+"</td></tr>"}).join(""):"<tr><td colspan='7'>Tidak ada transaksi pada filter ini.</td></tr>";
+  $("printSalesBody").innerHTML=os.length?os.map(o=>{const p=String(o.STATUS_PEMBAYARAN||"").toUpperCase()==="LUNAS",m=String(o.METODE_TRANSAKSI||"BELUM LUNAS").toUpperCase();return"<tr><td>"+formatDate(o.START)+"</td><td>#"+esc(o.ORDER_ID)+"</td><td>"+esc(o.NAMA)+"</td><td>"+esc(o.PAKET||"-")+"</td><td>"+esc(m)+"</td><td>"+(p?"LUNAS":"BELUM LUNAS")+"</td><td class='print-right'>"+rupiah(financeOrderTotal(o))+"</td></tr>"}).join(""):"<tr><td colspan='7'>Tidak ada transaksi pada filter ini.</td></tr>";
   $("printMethods").innerHTML="";
   $("printExpenseBody").innerHTML="";
   $("printTimestamp").textContent="Dicetak "+new Date().toLocaleString("id-ID");
