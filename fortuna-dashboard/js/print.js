@@ -27,6 +27,7 @@ h1{font-size:20px;margin:0 0 4px;font-weight:800}
 table{width:100%;border-collapse:collapse}
 th{background:#f1f5f3;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:#475569}
 th,td{border:1px solid #dfe5e1;padding:7px 8px;vertical-align:top}
+tr.paid td{background:#dcfce7 !important}
 td.amount,th.amount{text-align:right;white-space:nowrap}
 .total{margin-top:12px;display:flex;justify-content:flex-end;font-size:12px;font-weight:800}
 .footer{margin-top:18px;color:#94a3b8;font-size:9px}
@@ -62,7 +63,8 @@ function printOrders(){
     const method=String(o.METODE_TRANSAKSI||'').trim();
     const methodLabel=!method||method.toUpperCase()==='BELUM LUNAS'?'Belum ditentukan':method;
     const paymentStatus=String(o.STATUS_PEMBAYARAN||'').trim()||(method.toUpperCase()==='BELUM LUNAS'?'BELUM LUNAS':'-');
-    return `<tr>
+    const isPaid=paymentStatus.toUpperCase()==='LUNAS';
+    return `<tr class="${isPaid?'paid':''}">
       <td>#${printEscape(o.ORDER_ID)}</td>
       <td><b>${printEscape(o.NAMA)}</b><br>${printEscape(o.NO_WA)}</td>
       <td>${items||'-'}</td>
