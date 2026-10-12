@@ -100,6 +100,7 @@ function renderOrders(){
   $('orderRows').innerHTML=list.map(o=>{
     const identity=getOrderType(o.ORDER_ID);
     const unpaid=o.STATUS_PEMBAYARAN==='BELUM LUNAS';
+    const isPaid=String(o.STATUS_PEMBAYARAN||'').trim().toUpperCase()==='LUNAS';
     const allDone=(o.items||[]).length>0&&(o.items||[]).every(i=>i.STATUS==='SELESAI');
     const itemHtml=(o.items||[]).map(i=>`
       <div class="order-item">
@@ -118,7 +119,7 @@ function renderOrders(){
         ${i.STATUS==='QC'||i.STATUS==='DIPROSES'?'<button onclick="setStatus(\''+esc(i.ITEM_ID)+'\',\'SIAP\')" class="btn text-[9px] bg-emerald-50 text-emerald-700 rounded-lg px-2 py-1">SIAP</button>':''}
         ${i.STATUS==='SIAP'?'<button onclick="setStatus(\''+esc(i.ITEM_ID)+'\',\'SELESAI\')" class="btn text-[9px] bg-slate-900 text-white rounded-lg px-2 py-1">SELESAI</button>':''}
       </div>`).join('');
-    return `<tr class="border-t border-slate-100 align-top">
+    return `<tr class="border-t border-slate-100 align-top ${isPaid?'bg-emerald-50':''}">
       <td class="px-3 py-2.5 whitespace-nowrap">
         <div class="flex items-center gap-2">
           <span class="font-black">#${esc(o.ORDER_ID)}</span>
