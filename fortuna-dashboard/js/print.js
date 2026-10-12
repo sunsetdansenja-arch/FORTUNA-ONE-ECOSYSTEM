@@ -59,18 +59,23 @@ function printOrders(){
   const scopeLabel=activeMode==='INSTANSI'&&instansiNames.length?instansiNames.join(', '):modeLabel;
   const rows=list.map(o=>{
     const items=(o.items||[]).map(i=>`${printEscape(i.PAKET)} (${printEscape(i.BERAT)} ${printEscape(typeof getOrderUnit==='function'?getOrderUnit(o):'kg')}) — ${printEscape(i.STATUS)}`).join('<br>');
+    const method=String(o.METODE_TRANSAKSI||'').trim();
+    const methodLabel=!method||method.toUpperCase()==='BELUM LUNAS'?'Belum ditentukan':method;
+    const paymentStatus=String(o.STATUS_PEMBAYARAN||'').trim()||(method.toUpperCase()==='BELUM LUNAS'?'BELUM LUNAS':'-');
     return `<tr>
       <td>#${printEscape(o.ORDER_ID)}</td>
       <td><b>${printEscape(o.NAMA)}</b><br>${printEscape(o.NO_WA)}</td>
       <td>${items||'-'}</td>
+      <td>${printEscape(methodLabel)}</td>
+      <td>${printEscape(paymentStatus)}</td>
       <td class="amount">${printMoney(typeof getOrderTotalAmount==='function'?getOrderTotalAmount(o):o.TOTAL_TAGIHAN)}</td>
     </tr>`;
-  }).join('')||'<tr><td colspan="4" style="text-align:center">Tidak ada order yang cocok.</td></tr>';
+  }).join('')||'<tr><td colspan="6" style="text-align:center">Tidak ada order yang cocok.</td></tr>';
 
   openPrintDocument(
     'Daftar Order — Fortuna Laundry',
     `${list.length} order • Mode: ${scopeLabel} • Filter: ${filterLabel}${q?' • Pencarian: '+q:''}`,
-    `<table><thead><tr><th>Order</th><th>Pelanggan</th><th>Paket / Status</th><th class="amount">Total</th></tr></thead><tbody>${rows}</tbody></table>
+    `<table><thead><tr><th>Order</th><th>Pelanggan</th><th>Paket / Status</th><th>Metode Pembayaran</th><th>Status Pembayaran</th><th class="amount">Total</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="total">Total nominal: ${printMoney(list.reduce((s,o)=>s+(typeof getOrderTotalAmount==='function'?getOrderTotalAmount(o):(Number(String(o.TOTAL_TAGIHAN||'').replace(/[^0-9.-]/g,''))||0)),0))}</div>`
   );
 }
