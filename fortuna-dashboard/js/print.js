@@ -59,7 +59,7 @@ function printOrders(){
   const instansiNames=[...new Set(list.map(o=>typeof getOrderType==='function'?getOrderType(o.ORDER_ID).instansi:'').filter(Boolean))];
   const scopeLabel=activeMode==='INSTANSI'&&instansiNames.length?instansiNames.join(', '):modeLabel;
   const rows=list.map(o=>{
-    const items=(o.items||[]).map(i=>`${printEscape(i.PAKET)} (${printEscape(i.BERAT)} ${printEscape(typeof getOrderUnit==='function'?getOrderUnit(o):'kg')}) — ${printEscape(i.STATUS)}`).join('<br>');
+    const items=(o.items||[]).map(i=>`${printEscape(typeof packageDisplayName==='function'?packageDisplayName(i.PAKET):i.PAKET)} (${printEscape(i.BERAT)} ${printEscape(typeof getOrderUnit==='function'?getOrderUnit(o,i.PAKET):'kg')}) — ${printEscape(i.STATUS)}`).join('<br>');
     const method=String(o.METODE_TRANSAKSI||'').trim();
     const methodLabel=!method||method.toUpperCase()==='BELUM LUNAS'?'Belum ditentukan':method;
     const paymentStatus=String(o.STATUS_PEMBAYARAN||'').trim()||(method.toUpperCase()==='BELUM LUNAS'?'BELUM LUNAS':'-');
