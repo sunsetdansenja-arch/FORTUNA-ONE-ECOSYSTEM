@@ -56,6 +56,26 @@ function institutionItems(){
   return Object.entries(INSTITUTION_CATALOG[inst]||{}).map(([name,price])=>({name,price}));
 }
 
+const PACKAGE_DISPLAY_NAMES={
+  'CUCI KOMPLIT REGULER':'CUCI KOMPLIT REGULER • 3 HARI',
+  'EXPRESS 1 HARI':'EXPRESS 1 HARI • 24 JAM',
+  'EXPRESS 3 JAM':'EXPRESS 3 JAM',
+  'EXPRESS 6 JAM':'EXPRESS 6 JAM',
+  'CUCI REGULER':'CUCI REGULER • 3 HARI',
+  'CUCI EXPRESS 1 HARI':'CUCI EXPRESS 1 HARI • 24 JAM',
+  'CUCI EXPRESS 3 JAM':'CUCI EXPRESS 3 JAM',
+  'CUCI EXPRESS 6 JAM':'CUCI EXPRESS 6 JAM',
+  'SETRIKA REGULER':'SETRIKA REGULER • 2 HARI',
+  'SETRIKA EXPRESS 1 HARI':'SETRIKA EXPRESS 1 HARI • 24 JAM',
+  'SETRIKA EXPRESS 3 JAM':'SETRIKA EXPRESS 3 JAM',
+  'SETRIKA EXPRESS 6 JAM':'SETRIKA EXPRESS 6 JAM'
+};
+
+function packageDisplayName(name){
+  const key=String(name||'').trim().toUpperCase();
+  return PACKAGE_DISPLAY_NAMES[key]||String(name||'');
+}
+
 function packageOptionLabel(name){
   const item=PACKAGE_CATALOG[String(name||'').trim().toUpperCase()];
   if(!item)return String(name||'');
@@ -67,7 +87,7 @@ function packageOptionLabel(name){
     }
     priceLabel+=' / '+(item.pricing==='perKg'?'kg':item.unit);
   }
-  return String(name)+' — '+priceLabel+' · '+(item.deadline||'Deadline sesuai layanan');
+  return packageDisplayName(name)+' — '+priceLabel+' · Deadline: '+(item.deadline||'sesuai layanan');
 }
 
 function institutionPackageLabel(instansi,paket,price){
@@ -282,7 +302,7 @@ function renderOrders(){
     const itemHtml=(o.items||[]).map(i=>`
       <div class="order-item">
         <div class="order-item-head">
-          <div class="order-item-name">${esc(i.PAKET)}</div>
+          <div class="order-item-name">${esc(packageDisplayName(i.PAKET))}</div>
           <span class="pill s-${esc(i.STATUS)}">${esc(i.STATUS)}</span>
         </div>
         <div class="order-item-meta"><span>${esc(i.BERAT)} ${getOrderUnit(o,i.PAKET)}</span><span>•</span><span>${rupiah(i.TAGIHAN)}</span></div>
