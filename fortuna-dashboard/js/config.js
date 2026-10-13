@@ -1,7 +1,507 @@
 // Fortuna Laundry Dashboard V10.5 — shared configuration and state
 const WEBHOOK_URL='https://n8n-mzbmiib3etk4.kangkung.sumopod.my.id/webhook/fortuna-v5';
-const PACKAGES=['CUCI KOMPLIT REGULER','CUCI REGULER','SETRIKA REGULER','EXPRESS 1 HARI','CUCI EXPRESS 1 HARI','SETRIKA EXPRESS 1 HARI','EXPRESS 3 JAM','CUCI EXPRESS 3 JAM','SETRIKA EXPRESS 3 JAM','EXPRESS 6 JAM','CUCI EXPRESS 6 JAM','SETRIKA EXPRESS 6 JAM','FLEKSIBEL'];
-const DURATION={'CUCI KOMPLIT REGULER':72,'CUCI REGULER':72,'SETRIKA REGULER':48,'EXPRESS 1 HARI':24,'CUCI EXPRESS 1 HARI':24,'SETRIKA EXPRESS 1 HARI':24,'EXPRESS 3 JAM':3,'CUCI EXPRESS 3 JAM':3,'SETRIKA EXPRESS 3 JAM':3,'EXPRESS 6 JAM':6,'CUCI EXPRESS 6 JAM':6,'SETRIKA EXPRESS 6 JAM':6,'FLEKSIBEL':0};
+const PACKAGE_CUSTOM_OPTION='__CUSTOM__';
+const PACKAGE_CATALOG={
+  "CUCI KOMPLIT REGULER": {
+    "unit": "kg",
+    "price": 7000,
+    "maxPrice": null,
+    "pricing": "perKg",
+    "deadline": "3 Hari",
+    "duration": 72
+  },
+  "EXPRESS 1 HARI": {
+    "unit": "kg",
+    "price": 11000,
+    "maxPrice": null,
+    "pricing": "perKg",
+    "deadline": "24 Jam (1 Hari)",
+    "duration": 24
+  },
+  "EXPRESS 3 JAM": {
+    "unit": "kg",
+    "price": 16000,
+    "maxPrice": null,
+    "pricing": "perKg",
+    "deadline": "3 Jam",
+    "duration": 3
+  },
+  "EXPRESS 6 JAM": {
+    "unit": "kg",
+    "price": 14000,
+    "maxPrice": null,
+    "pricing": "perKg",
+    "deadline": "6 Jam",
+    "duration": 6
+  },
+  "CUCI REGULER": {
+    "unit": "kg",
+    "price": 6000,
+    "maxPrice": null,
+    "pricing": "perKg",
+    "deadline": "3 Hari",
+    "duration": 72
+  },
+  "CUCI EXPRESS 1 HARI": {
+    "unit": "kg",
+    "price": 7000,
+    "maxPrice": null,
+    "pricing": "perKg",
+    "deadline": "24 Jam (1 Hari)",
+    "duration": 24
+  },
+  "CUCI EXPRESS 3 JAM": {
+    "unit": "kg",
+    "price": 14000,
+    "maxPrice": null,
+    "pricing": "perKg",
+    "deadline": "3 Jam",
+    "duration": 3
+  },
+  "CUCI EXPRESS 6 JAM": {
+    "unit": "kg",
+    "price": 12000,
+    "maxPrice": null,
+    "pricing": "perKg",
+    "deadline": "6 Jam",
+    "duration": 6
+  },
+  "SETRIKA REGULER": {
+    "unit": "kg",
+    "price": 6000,
+    "maxPrice": null,
+    "pricing": "perKg",
+    "deadline": "2 Hari",
+    "duration": 48
+  },
+  "SETRIKA EXPRESS 1 HARI": {
+    "unit": "kg",
+    "price": 9000,
+    "maxPrice": null,
+    "pricing": "perKg",
+    "deadline": "24 Jam (1 Hari)",
+    "duration": 24
+  },
+  "SETRIKA EXPRESS 3 JAM": {
+    "unit": "kg",
+    "price": 14000,
+    "maxPrice": null,
+    "pricing": "perKg",
+    "deadline": "3 Jam",
+    "duration": 3
+  },
+  "SETRIKA EXPRESS 6 JAM": {
+    "unit": "kg",
+    "price": 12000,
+    "maxPrice": null,
+    "pricing": "perKg",
+    "deadline": "6 Jam",
+    "duration": 6
+  },
+  "FLEKSIBEL": {
+    "unit": "kg",
+    "price": null,
+    "maxPrice": null,
+    "pricing": "manual",
+    "deadline": "5 Hari",
+    "duration": 120
+  },
+  "KEBAYA TIPIS + PANJANG": {
+    "unit": "pcs/set",
+    "price": 27000,
+    "maxPrice": 52000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "KEBAYA TIPIS + ROK / CELANA": {
+    "unit": "set",
+    "price": 27000,
+    "maxPrice": 52000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "GAMIS PANJANG": {
+    "unit": "pcs",
+    "price": 37000,
+    "maxPrice": 62000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "GAMIS + HIJAB": {
+    "unit": "set",
+    "price": 47000,
+    "maxPrice": 52000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "SARUNG IHRAM": {
+    "unit": "set",
+    "price": 17000,
+    "maxPrice": 27000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "SAJADAH TIPIS": {
+    "unit": "pcs",
+    "price": 12000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "SAJADAH TEBAL": {
+    "unit": "pcs",
+    "price": 17000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "MUKENA": {
+    "unit": "set",
+    "price": 12000,
+    "maxPrice": 17000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "JAKET TIPIS": {
+    "unit": "pcs",
+    "price": 27000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "JAKET TEBAL": {
+    "unit": "pcs",
+    "price": 37000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "JAKET GUNUNG": {
+    "unit": "pcs",
+    "price": 37000,
+    "maxPrice": 47000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "JAKET KULIT": {
+    "unit": "pcs",
+    "price": 52000,
+    "maxPrice": 67000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "JAS TIPIS + CELANA": {
+    "unit": "set",
+    "price": 47000,
+    "maxPrice": 52000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "JAS EXCLUSIVE + CELANA": {
+    "unit": "set",
+    "price": 62000,
+    "maxPrice": 82000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "KEMEJA PANJANG": {
+    "unit": "pcs",
+    "price": 27000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "KEMEJA PENDEK": {
+    "unit": "pcs",
+    "price": 22000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "BLAZER TIPIS": {
+    "unit": "pcs",
+    "price": 27000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "CELANA JEANS TIPIS": {
+    "unit": "pcs",
+    "price": 22000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "CELANA JEANS TEBAL": {
+    "unit": "pcs",
+    "price": 27000,
+    "maxPrice": 37000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "SELIMUT TIPIS": {
+    "unit": "pcs",
+    "price": 17000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "SELIMUT TEBAL": {
+    "unit": "pcs",
+    "price": 22000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "BEDCOVER BESAR": {
+    "unit": "pcs",
+    "price": 27000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "BEDCOVER KING": {
+    "unit": "pcs",
+    "price": 37000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "BEDCOVER + SPREI": {
+    "unit": "set",
+    "price": 52000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "BANTAL + GULING TIPIS": {
+    "unit": "set",
+    "price": 17000,
+    "maxPrice": 27000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "BANTAL + GULING TEBAL": {
+    "unit": "set",
+    "price": 27000,
+    "maxPrice": 37000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "SARUNG KASUR": {
+    "unit": "pcs",
+    "price": 37000,
+    "maxPrice": 47000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "SPREI": {
+    "unit": "pcs",
+    "price": 12000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "SPREI SET": {
+    "unit": "set",
+    "price": 17000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "KARPET PERMADANI": {
+    "unit": "pcs",
+    "price": 67000,
+    "maxPrice": 132000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "KARPET HAMBAL": {
+    "unit": "pcs",
+    "price": 47000,
+    "maxPrice": 87000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "KARPET EXCLUSIVE": {
+    "unit": "pcs",
+    "price": 87000,
+    "maxPrice": 152000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "KARPET MEDIUM": {
+    "unit": "pcs",
+    "price": 52000,
+    "maxPrice": 77000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "KASUR PALEMBANG": {
+    "unit": "pcs",
+    "price": 47000,
+    "maxPrice": 77000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "TIKAR LANTAI": {
+    "unit": "pcs",
+    "price": 37000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "BONEKA KECIL": {
+    "unit": "pcs",
+    "price": 12000,
+    "maxPrice": 17000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "BONEKA SEDANG": {
+    "unit": "pcs",
+    "price": 27000,
+    "maxPrice": 52000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "BONEKA BESAR": {
+    "unit": "pcs",
+    "price": 52000,
+    "maxPrice": 102000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "SEPATU SNEAKERS": {
+    "unit": "pasang",
+    "price": 37000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "SEPATU KULIT": {
+    "unit": "pasang",
+    "price": 52000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "SENDAL": {
+    "unit": "pasang",
+    "price": 17000,
+    "maxPrice": 22000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "STROLLER BABY": {
+    "unit": "pcs",
+    "price": 82000,
+    "maxPrice": 132000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "BABY BOX": {
+    "unit": "pcs",
+    "price": 82000,
+    "maxPrice": 152000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "KASUR BABY": {
+    "unit": "pcs",
+    "price": 37000,
+    "maxPrice": 62000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "CAR SET BABY": {
+    "unit": "pcs",
+    "price": 72000,
+    "maxPrice": 102000,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "FAMILY 1 (20 KG)": {
+    "unit": "paket",
+    "price": 120000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "FAMILY 2 (30 KG)": {
+    "unit": "paket",
+    "price": 180000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "FAMILY 3 (40 KG)": {
+    "unit": "paket",
+    "price": 240000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  },
+  "FAMILY 4 (50 KG)": {
+    "unit": "paket",
+    "price": 300000,
+    "maxPrice": null,
+    "pricing": "perUnit",
+    "deadline": "Non-Express / Sesuai Layanan",
+    "duration": null
+  }
+};
+const PACKAGES=Object.keys(PACKAGE_CATALOG);
+const DURATION=Object.fromEntries(Object.entries(PACKAGE_CATALOG).filter(([,item])=>Number.isFinite(item.duration)).map(([name,item])=>[name,item.duration]));
+
 let orders=[],draft=null,payOrder=null,printer=null,busy=false,numTarget=null,statusFilter='ALL',deadlineItems=[],deadlineFilter='ALL',opsView='new',previewMode='create',previewOrder=null,waTarget=null;
 // Isi URL halaman status customer yang sebenarnya di sini saat sudah tersedia. Jangan gunakan URL dashboard internal.
 const STATUS_CHECK_BASE_URL='https://fortunasortir.beuna.xyz/customerdash.html';
