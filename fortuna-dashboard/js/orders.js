@@ -5,7 +5,6 @@ function normalize(o){return o}
 const INSTITUTION_CATALOG={
   SECATA:{
     'PDL SET':'20000',
-    'EXPRESS 1':'20000',
     'KAOS':'2000',
     'KAOS KAKI':'2000',
     'CELANA PENDEK':'2000',
@@ -521,17 +520,17 @@ async function saveEdit(e){
   const o=f.o,old=f.i;
   if(String(old.STATUS||'').toUpperCase()==='SELESAI')return toast('Item SELESAI tidak dapat diedit.',false);
 
-  const inst=isInstitutionOrder(o);
-  const unit=inst?'pcs':'kg';
-  const rawQty=parseOrderQuantity($('edit-berat').value);
-  const qty=unit==='pcs'?Math.round(rawQty):rawQty;
-  if(!(qty>0))return toast((unit==='pcs'?'Jumlah (PCS)':'Berat (KG)')+' harus lebih dari 0.',false);
-
   const selectedPackage=$('edit-paket').value;
   const paket=selectedPackage===PACKAGE_CUSTOM_OPTION
     ?String($('edit-custom-package-name')?.value||'').trim()
     :selectedPackage;
   if(!paket)return toast('Isi nama paket custom terlebih dahulu.',false);
+
+  const inst=isInstitutionOrder(o);
+  const unit=inst?'pcs':(PACKAGE_CATALOG[paket]?.unit||'unit');
+  const rawQty=parseOrderQuantity($('edit-berat').value);
+  const qty=unit==='kg'?rawQty:Math.round(rawQty);
+  if(!(qty>0))return toast((unit==='kg'?'Berat (KG)':'Jumlah ('+unit.toUpperCase()+')')+' harus lebih dari 0.',false);
   const identityForPackage=getOrderType(o.ORDER_ID);
   const instansiForPackage=identityForPackage.instansi||String(o.NAMA_INSTANSI||$('edit-paket').dataset.instansi||'').toUpperCase();
   const packageSize=institutionPackageSize(instansiForPackage,paket);
