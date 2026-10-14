@@ -92,6 +92,9 @@ function packageOptionLabel(name){
 
 function institutionPackageLabel(instansi,paket,price){
   const amount=rupiah(price);
+  if(instansi==='SECABA'&&String(paket||'').trim().toUpperCase()==='EXPRESS 1'){
+    return paket+' — '+amount+' / paket';
+  }
   if(institutionFixedPackage(instansi,paket)){
     const size=institutionPackageSize(instansi,paket);
     return paket+' — '+amount+' / '+(instansi==='SECATA'&&paket==='PDL SET'?'set':'paket')+' ('+size+' PCS)';
