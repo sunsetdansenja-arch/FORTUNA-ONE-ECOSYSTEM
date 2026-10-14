@@ -11,6 +11,14 @@
 
 const RECEIPT_COLUMNS = 32;                 // 58 mm, Font A 12x24 = 32 karakter
 const RECEIPT_TIMEZONE = 'Asia/Jakarta';    // tanggal struk selalu WIB, apa pun zona waktu perangkat
+
+// Zona waktu string START dari backend yang TIDAK punya offset (contoh "2026-10-14 03:30:00").
+//   'UTC' -> backend menulis waktu UTC; struk digeser +7 jam ke WIB  (perilaku struk sebelumnya)
+//   'WIB' -> backend sudah menulis waktu Jakarta; struk menampilkan jam apa adanya
+// Cara memastikan: buat 1 order, lalu di console dashboard jalankan
+//   orders[0].START   (atau cari order barunya) dan bandingkan dengan jam WIB saat order dibuat.
+// String yang sudah punya offset ("Z" atau "+07:00") tidak terpengaruh pengaturan ini.
+const RECEIPT_NAIVE_TIME_IS = 'UTC';
 const RECEIPT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 const RECEIPT_STORE = {
@@ -83,13 +91,14 @@ function receiptRupiah(n) {
   return (v < 0 ? '-' : '') + 'Rp ' + s;
 }
 
-// Timestamp backend tanpa offset dianggap UTC (sama seperti perilaku struk sebelumnya).
+// Timestamp tanpa offset ditafsirkan menurut RECEIPT_NAIVE_TIME_IS ('UTC' atau 'WIB').
 function receiptParseDate(value) {
   const raw = String(value == null ? '' : value).trim();
   if (!raw) return new Date();
   let iso = raw.indexOf('T') >= 0 ? raw : raw.replace(' ', 'T');
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) iso += 'T00:00:00';
-  const d = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(iso) ? new Date(iso) : new Date(iso + 'Z');
+  const naiveSuffix = RECEIPT_NAIVE_TIME_IS === 'WIB' ? '+07:00' : 'Z';
+  const d = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(iso) ? new Date(iso) : new Date(iso + naiveSuffix);
   return isNaN(d.getTime()) ? new Date() : d;
 }
 
