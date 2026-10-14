@@ -160,7 +160,7 @@ function addPackage(data={}){
   <input class="input custom-package-name mt-2" style="${isCustom?'':'display:none'}" value="${esc(customValue)}" placeholder="Isi nama paket custom sendiri">
   <div class="grid grid-cols-2 gap-2 mt-2">
     <input class="input weight num-input" ${unit==='kg'?'inputmode="decimal"':'inputmode="numeric" data-int="1"'} value="${esc(defaultQty)}" placeholder="${unit==='kg'?'Berat (KG)':'Jumlah ('+esc(unit.toUpperCase())+')'}">
-    <input class="input amount num-input" inputmode="numeric" value="${esc(initialAmount)}" placeholder="Total tagihan (editable)">
+    <input class="input amount num-input" data-int="1" inputmode="numeric" value="${esc(initialAmount)}" placeholder="Total tagihan (editable)">
   </div>`;
   $('packageRows').appendChild(row);
 
@@ -193,7 +193,7 @@ function addPackage(data={}){
 function calcTotal(){
   let total=0;
   document.querySelectorAll('#packageRows .amount').forEach(field=>{
-    total+=Number(String(field.value).replace(/[^0-9.-]/g,''))||0;
+    total+=receiptParseMoney(field.value);
   });
   const totalNode=$('orderTotal');
   if(totalNode)totalNode.textContent=rupiah(total);
@@ -353,7 +353,7 @@ function renderOrders(){
           <span class="font-black">#${esc(o.ORDER_ID)}</span>
           ${identity.type==='INSTANSI'?'<span class="inline-flex items-center rounded-full bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 text-[8px] font-black tracking-wide">INSTANSI • '+esc(identity.instansi)+'</span>':'<span class="inline-flex items-center rounded-full bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 text-[8px] font-black tracking-wide">REGULER</span>'}
         </div>
-        <div class="text-[9px] text-slate-400 mt-0.5">${o.START?new Date(o.START.replace(' ','T')).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):''}</div>
+        <div class="text-[9px] text-slate-400 mt-0.5">${o.START?esc(receiptFormatDate(receiptParseDate(o.START))):''}</div>
       </td>
       <td class="px-3 py-2.5 min-w-[130px]"><b class="text-xs">${esc(o.NAMA)}</b><div class="text-[9px] text-slate-400">${esc(o.NO_WA)}</div>${unpaid?'<span class="pill unpaid inline-block mt-1">BELUM LUNAS</span>':''}</td>
       <td class="px-3 py-2.5 min-w-[270px]"><div class="order-package-list">${itemHtml}</div></td>
@@ -438,10 +438,7 @@ async function deleteOrder(id){
 function findItem(id){for(const o of orders){const i=(o.items||[]).find(x=>x.ITEM_ID===id);if(i)return{o,i}}return null}
 
 function orderMoneyValue(value){
-  const raw=String(value??'').trim();
-  if(!raw)return 0;
-  const n=Number(raw.replace(/[^\d-]/g,''));
-  return Number.isFinite(n)?n:0;
+  return receiptParseMoney(value);
 }
 function getOrderTotalAmount(order){
   const items=Array.isArray(order?.items)?order.items:[];
