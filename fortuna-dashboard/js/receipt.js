@@ -52,6 +52,7 @@ function receiptPaperHTML(m) {
   return `<div class="receipt">
     <div style="text-align:center">${logo}<div class="receipt-brand">${esc(m.store.name)}</div>${m.store.address.map(a => `<div class="receipt-sub">${esc(a)}</div>`).join('')}<div class="receipt-sub">${esc(m.store.phone)}</div></div>
     <div class="row" style="margin-top:6px"><span>${esc(m.dateText)}</span><b>${esc(m.orderNo)}</b></div>
+    ${m.instansi ? `<div style="font-weight:800;margin-top:2px">${esc(m.instansi)}</div>` : ''}
     <div style="font-weight:800;margin-top:2px">${esc(m.name)}</div>
     <hr>
     ${m.items.map(it => `<div class="item"><div class="item-name">${it.no}. ${esc(it.name)}</div><div class="item-meta"><span>${esc(it.qty)} ${esc(it.unit)}</span><span>${esc(receiptRupiah(it.amount))}</span></div></div>`).join('')}
