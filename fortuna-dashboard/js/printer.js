@@ -1,23 +1,24 @@
-// Fortuna Laundry - Web Bluetooth / ESC-POS printer (v2, fix "cuma logo yang keluar")
-// Bergantung pada config.js: $, toast, printer (let printer=null), FORTUNA_LOGO_PNG
+// Fortuna Laundry - Web Bluetooth / ESC-POS printer (v3)
+// Bergantung pada: config.js ($, toast, printer (let printer=null), FORTUNA_LOGO_PNG)
+//                  receipt-model.js (buildReceiptModel, buildReceiptLines, RECEIPT_COLUMNS)
 //
-// Perubahan utama dibanding versi lama:
-//  1. Logo dikirim per pita 24 baris (bukan 1 blok 3,7 KB) + jeda antar pita,
-//     supaya buffer printer tidak meluap saat sedang mencetak gambar.
-//  2. Chunk BLE 20 byte (aman untuk MTU default), memakai write-with-response
-//     bila tersedia (ada ACK), dan retry kalau "GATT operation already in progress".
-//  3. Bug device.gatt.server (tidak ada) diperbaiki -> device.gatt.
-//  4. Error asli ditampilkan + di-console.error, koneksi lama ditutup bersih
-//     sebelum sambung ulang (tidak lagi membuang objek printer begitu saja).
-//  5. Device baru disimpan ke `printer` hanya kalau characteristic-nya valid.
+// Perubahan v3 dibanding v2:
+//  1. Isi struk TIDAK lagi dihitung di sini. Semua datang dari receipt-model.js,
+//     jadi cetak = preview (satuan, nama paket, total, tanggal, teks).
+//  2. Kirim ESC M 0 (pilih Font A) agar 32 kolom benar-benar 32 kolom.
+//  3. Teks dipecah ke segmen kecil + jeda (flow control ringan) agar printer murah tidak kewalahan.
+//  4. Logo gagal dimuat -> dilaporkan ke pemanggil (logoSkipped), bukan hilang diam-diam.
+//  5. Error saat menyusun struk tidak lagi memutus koneksi printer.
+//  6. Tidak ada toast ganda "printer terputus" saat kita sendiri yang memutus koneksi.
+//  7. Bagian koneksi BLE (connect/restore/ensure/write) TIDAK diubah.
 
 let printerCharacteristic=null;
 let printerConnecting=false;
 let printerPrinting=false;
+let printerSelfDisconnect=false;
 
 // ---- Pengaturan yang boleh di-tuning ---------------------------------------
 const PRINTER_WIDTH=384;            // 58 mm = 384 dot
-const RECEIPT_COLUMNS=32;           // Font A 12x24 => 32 karakter
 const PRINT_LOGO=true;              // set false untuk cetak teks saja (tes)
 const LOGO_WIDTH=160;               // kelipatan 8, maks 384
 const LOGO_BAND_ROWS=24;            // tinggi tiap pita raster
@@ -26,6 +27,8 @@ const PRINTER_CHUNK_SIZE=20;        // naikkan bertahap (64, 100) kalau sudah st
 const PRINTER_CHUNK_DELAY_MS=20;    // jeda antar chunk (write without response)
 const PRINTER_ACK_DELAY_MS=6;       // jeda antar chunk (write with response)
 const LOGO_BAND_DELAY_MS=120;       // jeda antar pita logo (beri waktu head thermal)
+const PRINTER_LINES_PER_SEGMENT=8;  // jumlah baris teks per segmen sebelum jeda
+const PRINTER_SEGMENT_DELAY_MS=60;  // jeda antar segmen teks
 const PRINTER_END_DELAY_MS=400;     // tunggu buffer terakhir habis
 // ----------------------------------------------------------------------------
 
@@ -78,6 +81,7 @@ async function findWritableCharacteristic(device){
 function onPrinterDisconnected(){
   printerCharacteristic=null;
   setPrinterUI(false,'Hubungkan ke printer');
+  if(printerSelfDisconnect)return;   // kita sendiri yang memutus (setelah gagal cetak); pesan error sudah ada
   toast('Thermal printer terputus. Hubungkan kembali sebelum mencetak.',false);
 }
 
@@ -156,89 +160,18 @@ async function ensurePrinter(){
   return false;
 }
 
-/* ------------------------------ ESC/POS teks ------------------------------ */
-
-function escposCmd(...values){return String.fromCharCode(...values)}
-
-function parseReceiptAmount(value){
-  if(typeof value==='number'&&Number.isFinite(value))return value;
-  const raw=String(value??'').trim();
-  if(!raw)return 0;
-  return Number(raw.replace(/[^0-9-]/g,''))||0;
-}
-
-function printerRupiah(value){
-  return 'Rp '+Math.round(parseReceiptAmount(value)).toLocaleString('id-ID');
-}
-
-function printerDate(value){
-  if(!value)return new Date();
-  const raw=String(value).trim();
-  const iso=raw.includes('T')?raw:raw.replace(' ','T');
-  return /(?:Z|[+-]\d{2}:?\d{2})$/.test(iso)?new Date(iso):new Date(iso+'Z');
-}
-
-function escposText(value){
-  return String(value??'')
-    .replace(/\r/g,'')
-    .replace(/[^\x09\x0A\x20-\x7E]/g,'?');
-}
-
-function receiptWrap(text,max=RECEIPT_COLUMNS){
-  const clean=escposText(text).trim();
-  if(!clean)return [''];
-  const words=clean.split(/\s+/);
-  const lines=[];let line='';
-  for(const word of words){
-    if(word.length>max){
-      if(line){lines.push(line);line=''}
-      for(let i=0;i<word.length;i+=max)lines.push(word.slice(i,i+max));
-      continue;
-    }
-    const candidate=line?line+' '+word:word;
-    if(candidate.length<=max)line=candidate;
-    else{lines.push(line);line=word}
-  }
-  if(line)lines.push(line);
-  return lines;
-}
-
-function receiptCentered(text,bold=false){
-  return escposCmd(0x1b,0x61,0x01)
-    +(bold?escposCmd(0x1b,0x45,0x01):'')
-    +receiptWrap(text).map(x=>x+'\n').join('')
-    +(bold?escposCmd(0x1b,0x45,0x00):'');
-}
-
-function receiptLeft(text,bold=false){
-  return escposCmd(0x1b,0x61,0x00)
-    +(bold?escposCmd(0x1b,0x45,0x01):'')
-    +receiptWrap(text).map(x=>x+'\n').join('')
-    +(bold?escposCmd(0x1b,0x45,0x00):'');
-}
-
-// Kiri-kanan; kalau tidak muat, kolom kanan turun ke baris berikutnya (tidak melebihi 32 kolom)
-function receiptLeftRight(left,right){
-  const l=escposText(left);
-  const r=escposText(right);
-  if(l.length+r.length+1<=RECEIPT_COLUMNS)
-    return l+' '.repeat(RECEIPT_COLUMNS-l.length-r.length)+r+'\n';
-  return l.slice(0,RECEIPT_COLUMNS)+'\n'+' '.repeat(Math.max(0,RECEIPT_COLUMNS-r.length))+r+'\n';
-}
-
-function receiptSeparator(char='-'){
-  return receiptCentered(char.repeat(RECEIPT_COLUMNS));
-}
-
 /* -------------------------- Logo: raster per pita -------------------------- */
 
-// Hasil: array Uint8Array, tiap elemen = 1 perintah GS v 0 untuk maks LOGO_BAND_ROWS baris.
+// Hasil:
+//   []      -> logo dimatikan / tidak dikonfigurasi (bukan error)
+//   null    -> logo seharusnya dicetak tapi GAGAL (timeout / decode error)
+//   [bands] -> array Uint8Array, tiap elemen = 1 perintah GS v 0 untuk maks LOGO_BAND_ROWS baris
 function logoToBands(){
   return new Promise(resolve=>{
     try{
       if(!PRINT_LOGO||typeof FORTUNA_LOGO_PNG==='undefined'||!FORTUNA_LOGO_PNG)return resolve([]);
       const img=new Image();
-      const timer=setTimeout(()=>resolve([]),3000);
+      const timer=setTimeout(()=>resolve(null),3000);
       img.onload=()=>{
         clearTimeout(timer);
         try{
@@ -268,97 +201,61 @@ function logoToBands(){
             bands.push(band);
           }
           resolve(bands);
-        }catch(e){console.warn('[printer] logo gagal diproses:',e);resolve([])}
+        }catch(e){console.warn('[printer] logo gagal diproses:',e);resolve(null)}
       };
-      img.onerror=()=>{clearTimeout(timer);resolve([])};
+      img.onerror=()=>{clearTimeout(timer);resolve(null)};
       img.src=FORTUNA_LOGO_PNG;
-    }catch(_){resolve([])}
+    }catch(_){resolve(null)}
   });
 }
 
-/* ------------------------------ Susun struk ------------------------------- */
+/* ------------------------------ Susun ESC/POS ------------------------------ */
 
-// Mengembalikan daftar segmen {data:Uint8Array, delay:ms}
+// Mengembalikan {segments:[{data:Uint8Array, delay:ms}], logoSkipped:boolean}
+// Isi struk = buildReceiptLines(buildReceiptModel(o)) -> sama persis dengan preview "Sesuai printer".
 async function buildFortunaEscPos(o){
+  const model=buildReceiptModel(o);
+  const lines=buildReceiptLines(model);
   const segs=[];
-  const bytes=[];
-  const encoder=new TextEncoder();
-  const pushText=s=>bytes.push(...encoder.encode(s));
-  const pushCmd=(...v)=>bytes.push(...v);
+  let bytes=[];
+  let align=1,bold=0,linesInSeg=0;
+  let logoSkipped=false;
 
-  // init + rata tengah untuk logo
-  segs.push({data:Uint8Array.of(0x1b,0x40,0x1b,0x32,0x1b,0x61,0x01),delay:80});
+  const flush=delay=>{
+    if(bytes.length){segs.push({data:Uint8Array.from(bytes),delay:delay||0});bytes=[]}
+    linesInSeg=0;
+  };
 
-  const bands=await logoToBands();
-  bands.forEach(b=>segs.push({data:b,delay:LOGO_BAND_DELAY_MS}));
-  if(bands.length)pushCmd(0x0a);
+  // reset printer, spasi baris default, Font A, rata tengah, bold off
+  segs.push({data:Uint8Array.of(0x1b,0x40, 0x1b,0x32, 0x1b,0x4d,0x00, 0x1b,0x61,0x01, 0x1b,0x45,0x00),delay:80});
 
-  pushText(receiptCentered('FORTUNA LAUNDRY',true));
-  pushText(receiptCentered('Jalan Raya Inpres no 4'));
-  pushText(receiptCentered('Jakarta Timur'));
-  pushText(receiptCentered('085693280500'));
-  pushCmd(0x0a);
-
-  const dt=printerDate(o.START||null);
-  const fmt={day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'};
-  const date=isNaN(dt.getTime())?new Date().toLocaleString('id-ID',fmt):dt.toLocaleString('id-ID',fmt);
-  const orderNo='#'+String(o.ORDER_ID||'PREVIEW');
-
-  pushCmd(0x1b,0x61,0x00);
-  pushText(receiptLeftRight(date,orderNo));
-
-  pushText(receiptLeft(String(o.NAMA||'-').toUpperCase(),true));
-  pushText(receiptSeparator());
-
-  const items=Array.isArray(o.items)?o.items:[];
-  items.forEach((x,i)=>{
-    pushText(receiptLeft((i+1)+'. '+String(x.PAKET||'-'),true));
-    pushText(receiptLeftRight(String(x.BERAT||'0')+' Kg',printerRupiah(x.TAGIHAN)));
-  });
-
-  pushText(receiptSeparator());
-  const total=items.reduce((s,x)=>s+parseReceiptAmount(x.TAGIHAN),0);
-  pushCmd(0x1b,0x45,0x01);
-  pushText(receiptLeftRight('TOTAL',printerRupiah(total)));
-  pushCmd(0x1b,0x45,0x00);
-
-  pushCmd(0x0a);
-  const status=String(o.STATUS_PEMBAYARAN||'BELUM LUNAS').toUpperCase();
-  const method=String(o.METODE_TRANSAKSI||'BELUM LUNAS').toUpperCase();
-  pushText(receiptCentered(status,true));
-  if(method!=='BELUM LUNAS')pushText(receiptCentered('Metode: '+method));
-  pushCmd(0x0a);
-
-  pushText(receiptCentered('-- PEMBAYARAN HARAP MENGGUNAKAN QRIS --'));
-  pushCmd(0x0a);
-  pushText(receiptCentered('PERHATIAN',true));
-  pushCmd(0x0a);
-
-  const notes=[
-    'Baju putih dicuci terpisah minimal 3 kg.',
-    'Kami tidak menerima komplain lebih dari 2x24jam setelah customer menerima Laundry.',
-    'Baju yang mudah luntur TAPI tidak memberitahu kami sebelumnya, bukan tanggung jawab kami.',
-    'Di sarankan baju luntur untuk cuci satuan.',
-    'Jika ingin pakaian Bapak/Ibu dikerjakan lebih optimal disarankan untuk pengerjaan satuan.',
-    'Laundry yang lebih dari 10 hari tidak diambil bukan menjadi tanggung jawab kami.',
-    'Laundry anda GRATIS apabila tidak mendapatkan nota.'
-  ];
-
-  for(const note of notes){
-    pushCmd(0x1b,0x61,0x01);
-    for(const line of receiptWrap('- '+note))pushText(line+'\n');
-    pushCmd(0x0a);
+  for(const line of lines){
+    if(line.logo){
+      const bands=await logoToBands();
+      if(bands===null)logoSkipped=true;
+      else if(bands.length){
+        flush(0);
+        bands.forEach(b=>segs.push({data:b,delay:LOGO_BAND_DELAY_MS}));
+      }
+      continue;
+    }
+    const a=line.align==='center'?1:0;
+    const b=line.bold?1:0;
+    if(a!==align){bytes.push(0x1b,0x61,a);align=a}
+    if(b!==bold){bytes.push(0x1b,0x45,b);bold=b}
+    const t=String(line.text||'').slice(0,RECEIPT_COLUMNS);
+    for(let i=0;i<t.length;i++){
+      const c=t.charCodeAt(i);
+      bytes.push(c>=0x20&&c<=0x7e?c:0x3f);   // pengaman: hanya ASCII yang boleh lewat
+    }
+    bytes.push(0x0a);
+    if(++linesInSeg>=PRINTER_LINES_PER_SEGMENT)flush(PRINTER_SEGMENT_DELAY_MS);
   }
 
-  pushText(receiptCentered('Kritik dan saran'));
-  pushText(receiptCentered('085693280500'));
-  pushCmd(0x0a);
-  pushText(receiptCentered('#Terimakasih Kasih#',true));
-  // Feed kertas agar bisa disobek (printer 58 mm Smartcom tidak punya cutter, GS V dibuang)
-  pushCmd(0x0a,0x0a,0x0a,0x0a);
-
-  segs.push({data:new Uint8Array(bytes),delay:PRINTER_END_DELAY_MS});
-  return segs;
+  // kembalikan state printer; feed kertas sudah ada di baris penutup (printer 58 mm tanpa cutter)
+  bytes.push(0x1b,0x45,0x00,0x1b,0x61,0x00);
+  flush(PRINTER_END_DELAY_MS);
+  return {segments:segs,logoSkipped};
 }
 
 /* --------------------------------- Kirim BLE ------------------------------- */
@@ -399,6 +296,7 @@ async function writePrinterPayload(segments){
   }
 }
 
+// Mengembalikan {ok:true, logoSkipped:boolean}; melempar Error kalau gagal.
 async function printReceipt(o){
   if(printerPrinting)throw new Error('Printer sedang mencetak, tunggu sebentar.');
   printerPrinting=true;
@@ -408,18 +306,30 @@ async function printReceipt(o){
       ready=await connectPrinter();
       if(!ready)throw new Error('Thermal printer belum terhubung. Hubungkan printer lalu coba cetak lagi.');
     }
+
+    // 1) susun struk (kalau gagal di sini, koneksi printer dibiarkan)
+    let built;
     try{
-      const segments=await buildFortunaEscPos(o);
+      built=await buildFortunaEscPos(o);
+    }catch(err){
+      console.error('[printer] susun struk gagal:',err);
+      throw new Error('Gagal menyusun struk ('+(err?.message||err)+').');
+    }
+
+    // 2) kirim ke printer
+    try{
       if(!printer?.gatt?.connected||!printerCharacteristic)throw new Error('Koneksi thermal printer terputus.');
-      await writePrinterPayload(segments);
-      return true;
+      await writePrinterPayload(built.segments);
+      return {ok:true,logoSkipped:built.logoSkipped};
     }catch(err){
       console.error('[printer] cetak gagal:',err);
       // tutup koneksi lama dengan bersih; objek `printer` dipertahankan agar bisa sambung ulang
+      printerSelfDisconnect=true;
       try{if(printer?.gatt?.connected)printer.gatt.disconnect()}catch(_){}
+      setTimeout(()=>{printerSelfDisconnect=false},1500);
       printerCharacteristic=null;
       setPrinterUI(false,'Hubungkan ke printer');
-      throw new Error('Cetak gagal ('+(err?.message||err)+'). Matikan-nyalakan printer, lalu hubungkan ulang dan cetak lagi.');
+      throw new Error('Cetak gagal ('+(err?.message||err)+'). Struk mungkin tercetak sebagian. Matikan-nyalakan printer, hubungkan ulang, lalu cetak ulang.');
     }
   }finally{printerPrinting=false}
 }
