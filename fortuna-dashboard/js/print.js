@@ -47,7 +47,7 @@ function printOrders(){
   const activeMode=typeof orderMode!=='undefined'&&orderMode==='INSTANSI'?'INSTANSI':'REGULER';
   const list=(orders||[]).filter(o=>{
     const items=o.items||[];
-    const identity=typeof getOrderType==='function'?getOrderType(o.ORDER_ID):{type:'REGULER',instansi:''};
+    const identity=typeof getOrderType==='function'?getOrderType(o):{type:'REGULER',instansi:''};
     const matchesMode=identity.type===activeMode;
     const matchesStatus=statusFilter==='ALL'||items.some(i=>String(i.STATUS||'').toUpperCase()===statusFilter);
     const matchesSearch=(String(o.ORDER_ID||'')+' '+identity.type+' '+identity.instansi+' '+String(o.NAMA||'')+' '+String(o.PAKET||'')+' '+items.map(i=>i.PAKET).join(' ')).toLowerCase().includes(q);
@@ -56,7 +56,7 @@ function printOrders(){
 
   const filterLabel=statusFilter==='ALL'?'Semua status':statusFilter;
   const modeLabel=activeMode==='INSTANSI'?'Instansi':'Reguler';
-  const instansiNames=[...new Set(list.map(o=>typeof getOrderType==='function'?getOrderType(o.ORDER_ID).instansi:'').filter(Boolean))];
+  const instansiNames=[...new Set(list.map(o=>typeof getOrderType==='function'?getOrderType(o).instansi:'').filter(Boolean))];
   const scopeLabel=activeMode==='INSTANSI'&&instansiNames.length?instansiNames.join(', '):modeLabel;
   const rows=list.map(o=>{
     const items=(o.items||[]).map(i=>`${printEscape(typeof packageDisplayName==='function'?packageDisplayName(i.PAKET):i.PAKET)} (${printEscape(i.BERAT)} ${printEscape(typeof getOrderUnit==='function'?getOrderUnit(o,i.PAKET):'kg')}) — ${printEscape(i.STATUS)}`).join('<br>');
