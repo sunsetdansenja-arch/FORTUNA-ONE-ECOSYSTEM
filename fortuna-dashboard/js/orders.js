@@ -257,12 +257,40 @@ function draftOrder(e){
   }
 }
 
-function getOrderType(orderId){
-  const id=String(orderId||'').toUpperCase();
-  if(id.startsWith('SECATA-'))return{type:'INSTANSI',instansi:'SECATA'};
-  if(id.startsWith('SECABA-'))return{type:'INSTANSI',instansi:'SECABA'};
-  if(id.startsWith('PUSPOMAD-'))return{type:'INSTANSI',instansi:'PUSPOMAD'};
-  return{type:'REGULER',instansi:''};
+function getOrderType(order){
+  const source = order && typeof order === 'object'
+    ? order
+    : { ORDER_ID: order };
+
+  const id = String(source.ORDER_ID || '').trim().toUpperCase();
+  const items = Array.isArray(source.items) ? source.items : [];
+  const itemIds = items.map(item =>
+    String(item && item.ITEM_ID || '').trim().toUpperCase()
+  );
+
+  // Prioritaskan ITEM_ID, karena ORDER_ID baru bersifat numerik global.
+  for (const instansi of ['SECATA', 'SECABA', 'PUSPOMAD']) {
+    if (itemIds.some(itemId => itemId.startsWith(instansi + '-'))) {
+      return { type: 'INSTANSI', instansi };
+    }
+  }
+
+  // Kompatibilitas untuk data lama yang memakai ORDER_ID ber-prefix.
+  for (const instansi of ['SECATA', 'SECABA', 'PUSPOMAD']) {
+    if (id.startsWith(instansi + '-')) {
+      return { type: 'INSTANSI', instansi };
+    }
+  }
+
+  // Fallback jika backend kelak mengirim jenis/nama instansi di order.
+  const explicitType = String(source.JENIS_ORDER || '').trim().toUpperCase();
+  const explicitInstansi = String(source.NAMA_INSTANSI || '').trim().toUpperCase();
+  if (explicitType === 'INSTANSI' &&
+      ['SECATA', 'SECABA', 'PUSPOMAD'].includes(explicitInstansi)) {
+    return { type: 'INSTANSI', instansi: explicitInstansi };
+  }
+
+  return { type: 'REGULER', instansi: '' };
 }
 
 function updateOrderBackupAlert(){
@@ -287,7 +315,7 @@ function renderOrders(){
   const activeMode=orderMode==='INSTANSI'?'INSTANSI':'REGULER';
   const list=orders.filter(o=>{
     const items=o.items||[];
-    const identity=getOrderType(o.ORDER_ID);
+    const identity=getOrderType(o);
     const matchesMode=identity.type===activeMode;
     const matchesStatus=statusFilter==='ALL'||items.some(i=>String(i.STATUS||'').toUpperCase()===statusFilter);
     const matchesSearch=(o.ORDER_ID+' '+identity.type+' '+identity.instansi+' '+o.NAMA+' '+o.PAKET+' '+items.map(i=>i.PAKET).join(' ')).toLowerCase().includes(q);
@@ -295,7 +323,7 @@ function renderOrders(){
   });
   $('orderCount').textContent=list.length+' order'+(statusFilter!=='ALL'?' • filter '+statusFilter:'')+' • '+activeMode;
   $('orderRows').innerHTML=list.map(o=>{
-    const identity=getOrderType(o.ORDER_ID);
+    const identity=getOrderType(o);
     const unpaid=o.STATUS_PEMBAYARAN==='BELUM LUNAS';
     const isPaid=String(o.STATUS_PEMBAYARAN||'').trim().toUpperCase()==='LUNAS';
     const allDone=(o.items||[]).length>0&&(o.items||[]).every(i=>i.STATUS==='SELESAI');
@@ -344,7 +372,7 @@ function toggleStatusFilter(filter,force=false){if(!force&&statusFilter===filter
 
 function renderSummary(){
   const activeMode=orderMode==='INSTANSI'?'INSTANSI':'REGULER';
-  const modeOrders=orders.filter(o=>getOrderType(o.ORDER_ID).type===activeMode);
+  const modeOrders=orders.filter(o=>getOrderType(o).type===activeMode);
   const counts={total:modeOrders.length,diterima:0,diproses:0,qc:0,siap:0,selesai:0};
   modeOrders.forEach(o=>(o.items||[]).forEach(i=>{
     const s=String(i.STATUS||'').toLowerCase();
@@ -418,7 +446,7 @@ function getOrderTotalAmount(order){
   return hasItemAmounts?items.reduce((sum,item)=>sum+orderMoneyValue(item.TAGIHAN),0):orderMoneyValue(order?.TOTAL_TAGIHAN);
 }
 function isInstitutionOrder(order){
-  return getOrderType(order?.ORDER_ID).type==='INSTANSI' ||
+  return getOrderType(order).type==='INSTANSI' ||
     String(order?.JENIS_ORDER||'').toUpperCase()==='INSTANSI' ||
     Boolean(String(order?.NAMA_INSTANSI||'').trim());
 }
@@ -456,7 +484,7 @@ function editItem(id){
   const o=f.o,i=f.i;
   if(String(i.STATUS||'').toUpperCase()==='SELESAI')return toast('Item SELESAI tidak dapat diedit.',false);
 
-  const identity=getOrderType(o.ORDER_ID);
+  const identity=getOrderType(o);
   const instansi=identity.instansi||String(o.NAMA_INSTANSI||'').toUpperCase();
   const inst=isInstitutionOrder(o);
   const current=String(i.PAKET||'').trim();
@@ -551,7 +579,7 @@ async function saveEdit(e){
   const rawQty=parseOrderQuantity($('edit-berat').value);
   const qty=unit==='kg'?rawQty:Math.round(rawQty);
   if(!(qty>0))return toast((unit==='kg'?'Berat (KG)':'Jumlah ('+unit.toUpperCase()+')')+' harus lebih dari 0.',false);
-  const identityForPackage=getOrderType(o.ORDER_ID);
+  const identityForPackage=getOrderType(o);
   const instansiForPackage=identityForPackage.instansi||String(o.NAMA_INSTANSI||$('edit-paket').dataset.instansi||'').toUpperCase();
   const packageSize=institutionPackageSize(instansiForPackage,paket);
   if(inst&&institutionFixedPackage(instansiForPackage,paket)&&qty%packageSize!==0)return toast(paket+' harus berjumlah kelipatan '+packageSize+' PCS per paket.',false);
