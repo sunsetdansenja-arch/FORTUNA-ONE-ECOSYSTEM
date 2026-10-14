@@ -297,12 +297,39 @@ async function loadData(){
     if(refresh){refresh.disabled=false;refresh.textContent="↻ Refresh"}
   }
 }
-function financeOrderType(orderId){
-  const id=String(orderId||"").toUpperCase();
-  if(id.startsWith("SECATA-"))return{type:"INSTANSI",instansi:"SECATA"};
-  if(id.startsWith("SECABA-"))return{type:"INSTANSI",instansi:"SECABA"};
-  if(id.startsWith("PUSPOMAD-"))return{type:"INSTANSI",instansi:"PUSPOMAD"};
-  return{type:"REGULER",instansi:""};
+function financeOrderType(order){
+  const source = order && typeof order === "object"
+    ? order
+    : { ORDER_ID: order };
+
+  const id = String(source.ORDER_ID || "").trim().toUpperCase();
+  const items = Array.isArray(source.items) ? source.items : [];
+  const itemIds = items.map(item =>
+    String(item && item.ITEM_ID || "").trim().toUpperCase()
+  );
+
+  // ITEM_ID menjadi penanda utama untuk order instansi.
+  for (const instansi of ["SECATA", "SECABA", "PUSPOMAD"]) {
+    if (itemIds.some(itemId => itemId.startsWith(instansi + "-"))) {
+      return { type: "INSTANSI", instansi };
+    }
+  }
+
+  // Tetap kenali order historis yang ORDER_ID-nya ber-prefix.
+  for (const instansi of ["SECATA", "SECABA", "PUSPOMAD"]) {
+    if (id.startsWith(instansi + "-")) {
+      return { type: "INSTANSI", instansi };
+    }
+  }
+
+  const explicitType = String(source.JENIS_ORDER || "").trim().toUpperCase();
+  const explicitInstansi = String(source.NAMA_INSTANSI || "").trim().toUpperCase();
+  if (explicitType === "INSTANSI" &&
+      ["SECATA", "SECABA", "PUSPOMAD"].includes(explicitInstansi)) {
+    return { type: "INSTANSI", instansi: explicitInstansi };
+  }
+
+  return { type: "REGULER", instansi: "" };
 }
 function financeOrderTotal(order){
   const items=Array.isArray(order&&order.items)?order.items:[];
@@ -321,7 +348,7 @@ function applyFilters(){
   const inst=$("institutionFilter").value;
   state.filteredOrders=state.orders.filter(o=>{
     const d=dateOnly(o.START);
-    const identity=financeOrderType(o.ORDER_ID);
+    const identity=financeOrderType(o);
     if(f&&(!d||d<f))return false;
     if(t&&(!d||d>t))return false;
     if(type!=="ALL"&&identity.type!==type)return false;
