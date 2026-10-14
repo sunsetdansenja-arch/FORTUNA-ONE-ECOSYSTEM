@@ -155,6 +155,24 @@ function receiptLayoutLR(left, right, width) {
   return lines;
 }
 
+// Label instansi untuk struk, contoh "SECABA-038".
+// ORDER_ID sekarang numerik global (mis. 20894); identitas instansi ada di ITEM_ID ("SECABA-038-01").
+// Preview sebelum simpan belum punya ITEM_ID -> hanya nama instansi ("SECABA").
+// Data lama yang ORDER_ID-nya sudah "SECABA-038" tidak diberi label tambahan (hindari dobel).
+function receiptInstansiLabel(o) {
+  o = o || {};
+  const type = typeof getOrderType === 'function' ? getOrderType(o) : { type: 'REGULER', instansi: '' };
+  if (type.type !== 'INSTANSI') return '';
+  if (String(o.ORDER_ID || '').toUpperCase().indexOf(type.instansi + '-') === 0) return '';
+  const items = Array.isArray(o.items) ? o.items : [];
+  for (let i = 0; i < items.length; i++) {
+    const id = String((items[i] && items[i].ITEM_ID) || '').toUpperCase();
+    const m = id.match(/^(SECATA|SECABA|PUSPOMAD)-(\d+)/);
+    if (m) return m[1] + '-' + m[2];
+  }
+  return type.instansi;
+}
+
 /* --------------------------------- MODEL ---------------------------------- */
 
 function buildReceiptModel(o) {
@@ -192,6 +210,7 @@ function buildReceiptModel(o) {
     store: RECEIPT_STORE,
     dateText: receiptFormatDate(o.START ? receiptParseDate(o.START) : new Date()),
     orderNo: '#' + (receiptAscii(o.ORDER_ID || 'PREVIEW') || 'PREVIEW'),
+    instansi: receiptAscii(receiptInstansiLabel(o)).toUpperCase(),
     name: receiptAscii(o.NAMA || '-').toUpperCase() || '-',
     items: items,
     total: total,
@@ -230,6 +249,7 @@ function buildReceiptLines(m) {
   blank();
 
   lr(m.dateText, m.orderNo);
+  if (m.instansi) left(m.instansi, true);
   left(m.name, true);
   sep();
 
