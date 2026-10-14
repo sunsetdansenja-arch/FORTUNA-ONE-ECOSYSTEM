@@ -201,24 +201,8 @@ function calcTotal(){
 
 document.addEventListener('change',e=>{if(e.target.id==='f-instansi'&&orderMode==='INSTANSI'){const rows=$('packageRows');rows.innerHTML='';addPackage();calcTotal()}});
 
-function normalizeIndonesianWaNumber(value){
-  let number=String(value??'').replace(/\\D/g,'');
-  if(number.startsWith('0')) number='62'+number.slice(1);
-  else if(number.startsWith('8')) number='62'+number;
-  return number;
-}
-
 function draftOrder(e){
   e.preventDefault();
-  const waField=$('f-wa');
-  const rawWa=String(waField?.value||'').trim();
-  const normalizedWa=normalizeIndonesianWaNumber(rawWa);
-  if(rawWa&&!/^628\\d{7,11}$/.test(normalizedWa)){
-    toast('Nomor WhatsApp tidak valid. Gunakan nomor Indonesia, contoh 081234567890.',false);
-    waField?.focus();
-    return;
-  }
-  if(waField&&rawWa) waField.value=normalizedWa;
   const rows=[...document.querySelectorAll('#packageRows .package-row')];
   if(!rows.length){
     toast(orderMode==='INSTANSI'?'Tambahkan minimal satu item':'Tambahkan minimal satu paket',false);
@@ -251,7 +235,7 @@ function draftOrder(e){
 
   draft={
     NAMA:$('f-nama').value.trim(),
-    NO_WA:normalizedWa,
+    NO_WA:$('f-wa').value.trim(),
     METODE_TRANSAKSI:$('f-payment').value,
     JENIS_ORDER:orderMode,
     NAMA_INSTANSI:orderMode==='INSTANSI'?$('f-instansi').value:'',
