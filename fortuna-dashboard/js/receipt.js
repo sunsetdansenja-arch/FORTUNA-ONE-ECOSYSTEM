@@ -159,29 +159,8 @@ async function confirmCreate(print, sendWa) {
 
     if (sendWa) {
       const n = normalizeWaNumber(full.NO_WA);
-      const link = buildStatusLink(full);
       if (n) {
-        const m = buildReceiptModel(full);
-        const items = Array.isArray(full.items) ? full.items : [];
-        const itemText = items
-          .map((x, i) => `- ${x.PAKET || '-'} — ${x.BERAT || 0} ${(m.items[i] || {}).unit || 'kg'}`)
-          .join('\n');
-        const msg = [
-          'Halo ' + (full.NAMA || 'Customer') + ',',
-          '',
-          'Terima kasih sudah menggunakan Fortuna Laundry.',
-          '',
-          'Pesanan #' + full.ORDER_ID + ' sudah kami terima.',
-          itemText,
-          '',
-          'Total: ' + rupiah(m.total),
-          '',
-          'Cek status cucian:',
-          link || 'Link status akan tersedia di customer dashboard.',
-          '',
-          'Terima kasih.',
-          'Fortuna Laundry'
-        ].join('\n');
+        const msg = buildOrderWhatsAppMessage(full);
         window.open('https://wa.me/' + n + '?text=' + encodeURIComponent(msg), '_blank');
       } else {
         toast('Order tersimpan, tetapi nomor WhatsApp customer kosong.', false);
