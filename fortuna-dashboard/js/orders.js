@@ -203,6 +203,7 @@ document.addEventListener('change',e=>{if(e.target.id==='f-instansi'&&orderMode=
 
 function draftOrder(e){
   e.preventDefault();
+  const sendWaOnly=!!(e.submitter&&e.submitter.dataset.sendWaOnly==='true');
   const rows=[...document.querySelectorAll('#packageRows .package-row')];
   if(!rows.length){
     toast(orderMode==='INSTANSI'?'Tambahkan minimal satu item':'Tambahkan minimal satu paket',false);
@@ -245,6 +246,11 @@ function draftOrder(e){
       TAGIHAN:row.querySelector('.amount').value
     }))
   };
+
+  if(sendWaOnly){
+    confirmCreate(false,true);
+    return;
+  }
 
   try{
     previewMode='create';
