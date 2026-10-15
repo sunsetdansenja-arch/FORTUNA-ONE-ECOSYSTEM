@@ -1,660 +1,335 @@
-// Fortuna Laundry — orders module
+// Fortuna Laundry - Web Bluetooth / ESC-POS printer (v3)
+// Bergantung pada: config.js ($, toast, printer (let printer=null), FORTUNA_LOGO_PNG)
+//                  receipt-model.js (buildReceiptModel, buildReceiptLines, RECEIPT_COLUMNS)
+//
+// Perubahan v3 dibanding v2:
+//  1. Isi struk TIDAK lagi dihitung di sini. Semua datang dari receipt-model.js,
+//     jadi cetak = preview (satuan, nama paket, total, tanggal, teks).
+//  2. Kirim ESC M 0 (pilih Font A) agar 32 kolom benar-benar 32 kolom.
+//  3. Teks dipecah ke segmen kecil + jeda (flow control ringan) agar printer murah tidak kewalahan.
+//  4. Logo gagal dimuat -> dilaporkan ke pemanggil (logoSkipped), bukan hilang diam-diam.
+//  5. Error saat menyusun struk tidak lagi memutus koneksi printer.
+//  6. Tidak ada toast ganda "printer terputus" saat kita sendiri yang memutus koneksi.
+//  7. Bagian koneksi BLE (connect/restore/ensure/write) TIDAK diubah.
 
-function normalize(o){return o}
+let printerCharacteristic=null;
+let printerConnecting=false;
+let printerPrinting=false;
+let printerSelfDisconnect=false;
 
-const INSTITUTION_CATALOG={
-  SECATA:{
-    'PDL SET':'20000',
-    'KAOS':'2000',
-    'KAOS KAKI':'2000',
-    'CELANA PENDEK':'2000',
-    'CD':'2000',
-    'HANDUK':'2000',
-    'SARUNG':'2000',
-    'SARUNG BANTAL':'2000'
-  },
-  SECABA:{
-    'EXPRESS 1':'25000',
-    'KAOS':'3000',
-    'KAOS KAKI':'3000',
-    'CELANA PENDEK':'3000',
-    'CD':'3000',
-    'HANDUK':'3000',
-    'SARUNG':'3000',
-    'SARUNG BANTAL':'3000'
-  },
-  PUSPOMAD:{'EXPRESS 1':'15000','+ HANGER':'5000'}
-};
-function institutionFixedPackage(instansi,paket){
-  const name=String(paket||'').trim().toUpperCase();
-  return (instansi==='SECATA'&&name==='PDL SET')||
-    (instansi==='SECABA'&&name==='EXPRESS 1');
-}
-function institutionPackagePrice(instansi,paket){
-  if(instansi==='SECATA'&&String(paket||'').trim().toUpperCase()==='EXPRESS 1')return 20000;
-  const value=Number(INSTITUTION_CATALOG[instansi]?.[paket]);
-  return Number.isFinite(value)&&value>0?value:0;
-}
-function institutionPackageSize(instansi,paket){
-  if(instansi==='SECATA'&&String(paket||'').trim().toUpperCase()==='PDL SET')return 2;
-  if(instansi==='SECABA'&&String(paket||'').trim().toUpperCase()==='EXPRESS 1')return 5;
-  return 1;
-}
-function institutionDefaultQuantity(instansi,paket){
-  return institutionPackageSize(instansi,paket);
-}
-function institutionItemAmount(instansi,paket,quantity){
-  const price=institutionPackagePrice(instansi,paket);
-  if(!price)return 0;
-  const qty=Math.max(0,Math.round(Number(quantity)||0));
-  const size=institutionPackageSize(instansi,paket);
-  if(institutionFixedPackage(instansi,paket))return qty>0&&qty%size===0?(qty/size)*price:0;
-  return qty*price;
-}
-function institutionItems(){
-  const inst=$('f-instansi')?.value||'SECATA';
-  return Object.entries(INSTITUTION_CATALOG[inst]||{}).map(([name,price])=>({name,price}));
-}
+// ---- Pengaturan yang boleh di-tuning ---------------------------------------
+const PRINTER_WIDTH=384;            // 58 mm = 384 dot
+const PRINT_LOGO=true;              // set false untuk cetak teks saja (tes)
+const LOGO_WIDTH=160;               // kelipatan 8, maks 384
+const LOGO_BAND_ROWS=24;            // tinggi tiap pita raster
+const LOGO_THRESHOLD=170;           // makin besar = makin hitam
+const PRINTER_CHUNK_SIZE=20;        // naikkan bertahap (64, 100) kalau sudah stabil
+const PRINTER_CHUNK_DELAY_MS=20;    // jeda antar chunk (write without response)
+const PRINTER_ACK_DELAY_MS=6;       // jeda antar chunk (write with response)
+const LOGO_BAND_DELAY_MS=120;       // jeda antar pita logo (beri waktu head thermal)
+const PRINTER_LINES_PER_SEGMENT=8;  // jumlah baris teks per segmen sebelum jeda
+const PRINTER_SEGMENT_DELAY_MS=60;  // jeda antar segmen teks
+const PRINTER_END_DELAY_MS=400;     // tunggu buffer terakhir habis
+// ----------------------------------------------------------------------------
 
-const PACKAGE_DISPLAY_NAMES={
-  'CUCI KOMPLIT REGULER':'CUCI KOMPLIT REGULER • 3 HARI',
-  'EXPRESS 1 HARI':'EXPRESS 1 HARI • 24 JAM',
-  'EXPRESS 3 JAM':'EXPRESS 3 JAM',
-  'EXPRESS 6 JAM':'EXPRESS 6 JAM',
-  'CUCI REGULER':'CUCI REGULER • 3 HARI',
-  'CUCI EXPRESS 1 HARI':'CUCI EXPRESS 1 HARI • 24 JAM',
-  'CUCI EXPRESS 3 JAM':'CUCI EXPRESS 3 JAM',
-  'CUCI EXPRESS 6 JAM':'CUCI EXPRESS 6 JAM',
-  'SETRIKA REGULER':'SETRIKA REGULER • 2 HARI',
-  'SETRIKA EXPRESS 1 HARI':'SETRIKA EXPRESS 1 HARI • 24 JAM',
-  'SETRIKA EXPRESS 3 JAM':'SETRIKA EXPRESS 3 JAM',
-  'SETRIKA EXPRESS 6 JAM':'SETRIKA EXPRESS 6 JAM'
-};
+const PRINTER_OPTIONAL_SERVICES=[
+  '000018f0-0000-1000-8000-00805f9b34fb',
+  '0000ff00-0000-1000-8000-00805f9b34fb',
+  '0000ffe0-0000-1000-8000-00805f9b34fb',
+  '0000ffe5-0000-1000-8000-00805f9b34fb',
+  '0000e025-0000-1000-8000-00805f9b34fb',
+  '00001101-0000-1000-8000-00805f9b34fb',
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455'
+];
+const PRINTER_IGNORED_SERVICES=[
+  '00001800-0000-1000-8000-00805f9b34fb',
+  '00001801-0000-1000-8000-00805f9b34fb'
+];
+const PRINTER_NAME_RE=/RPP02N|RPP|Printer|Thermal|POS|MTP|Smartcom/i;
 
-function packageDisplayName(name){
-  const key=String(name||'').trim().toUpperCase();
-  return PACKAGE_DISPLAY_NAMES[key]||String(name||'');
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+function setPrinterUI(connected,text){
+  const btn=$('printerBtn'),icon=$('printerIcon'),label=$('printerText');
+  if(!btn)return;
+  label.textContent=text||(connected?'Terhubung':'Hubungkan ke printer');
+  icon.className=connected?'fa-solid fa-print mr-1 text-emerald-600':'fa-solid fa-print mr-1 text-red-600';
+  btn.classList.toggle('bg-emerald-50',connected);
+  btn.classList.toggle('text-[#0F5A47]',connected);
 }
 
-function packageOptionLabel(name){
-  const item=PACKAGE_CATALOG[String(name||'').trim().toUpperCase()];
-  if(!item)return String(name||'');
-  let priceLabel='Harga manual';
-  if(Number.isFinite(item.price)){
-    priceLabel=rupiah(item.price);
-    if(Number.isFinite(item.maxPrice)&&item.maxPrice>item.price){
-      priceLabel+='–'+rupiah(item.maxPrice);
-    }
-    priceLabel+=' / '+(item.pricing==='perKg'?'kg':item.unit);
+function orderPrinterDevices(devices){
+  const isP=d=>d.name&&PRINTER_NAME_RE.test(d.name);
+  return [...devices.filter(isP),...devices.filter(d=>!isP(d))];
+}
+
+async function findWritableCharacteristic(device){
+  if(!device?.gatt)return null;
+  // FIX: BluetoothRemoteGATTServer tidak punya properti .server
+  const server=device.gatt.connected?device.gatt:await device.gatt.connect();
+  const all=await server.getPrimaryServices();
+  const services=all.filter(s=>!PRINTER_IGNORED_SERVICES.includes(s.uuid));
+  const rank=s=>{const i=PRINTER_OPTIONAL_SERVICES.indexOf(s.uuid);return i<0?99:i};
+  services.sort((a,b)=>rank(a)-rank(b));
+  for(const service of services){
+    const chars=await service.getCharacteristics();
+    for(const c of chars)if(c.properties.writeWithoutResponse||c.properties.write)return c;
   }
-  return packageDisplayName(name)+' — '+priceLabel+' · Deadline: '+(item.deadline||'sesuai layanan');
+  return null;
 }
 
-function institutionPackageLabel(instansi,paket,price){
-  const amount=rupiah(price);
-  if(instansi==='SECABA'&&String(paket||'').trim().toUpperCase()==='EXPRESS 1'){
-    return paket+' — '+amount+' / paket';
-  }
-  if(institutionFixedPackage(instansi,paket)){
-    const size=institutionPackageSize(instansi,paket);
-    return paket+' — '+amount+' / '+(instansi==='SECATA'&&paket==='PDL SET'?'set':'paket')+' ('+size+' PCS)';
-  }
-  return paket+' — '+amount+' / PCS';
+function onPrinterDisconnected(){
+  printerCharacteristic=null;
+  setPrinterUI(false,'Hubungkan ke printer');
+  if(printerSelfDisconnect)return;   // kita sendiri yang memutus (setelah gagal cetak); pesan error sudah ada
+  toast('Thermal printer terputus. Hubungkan kembali sebelum mencetak.',false);
 }
 
-function regularPackageAmount(paket,quantity){
-  const item=PACKAGE_CATALOG[String(paket||'').trim().toUpperCase()];
-  const qty=Number(String(quantity??'').replace(',','.'));
-  if(!item||!Number.isFinite(qty)||qty<=0||!Number.isFinite(item.price))return 0;
-  if(item.pricing==='perKg')return Math.round(qty*item.price);
-  if(item.pricing==='perUnit')return Math.round(Math.max(0,Math.round(qty))*item.price);
-  return 0;
+function bindPrinterDisconnect(device){
+  if(!device)return;
+  device.removeEventListener('gattserverdisconnected',onPrinterDisconnected);
+  device.addEventListener('gattserverdisconnected',onPrinterDisconnected);
 }
 
-function packageNameFromRow(row){
-  const select=row.querySelector('.package');
-  if(!select)return '';
-  if(select.value===PACKAGE_CUSTOM_OPTION){
-    return String(row.querySelector('.custom-package-name')?.value||'').trim();
+// Coba device yang pernah diizinkan. `printer` hanya di-set kalau berhasil.
+async function tryAuthorizedDevices(){
+  if(!navigator.bluetooth?.getDevices)return false;
+  const devices=await navigator.bluetooth.getDevices();
+  for(const device of orderPrinterDevices(devices)){
+    try{
+      bindPrinterDisconnect(device);
+      const c=await findWritableCharacteristic(device);
+      if(c){printer=device;printerCharacteristic=c;return true}
+    }catch(e){console.debug('[printer] device dilewati:',device.name,e)}
   }
-  return select.value;
+  return false;
 }
 
-function addPackage(data={}){
-  const row=document.createElement('div');
-  row.className='package-row';
-  const instMode=orderMode==='INSTANSI';
-  const inst=$('f-instansi')?.value||'SECATA';
-  const originalName=String(data.PAKET||'').trim();
-  const normalizedName=originalName.toUpperCase();
-  const isKnown=instMode
-    ? Object.prototype.hasOwnProperty.call(INSTITUTION_CATALOG[inst]||{},normalizedName)
-    : Object.prototype.hasOwnProperty.call(PACKAGE_CATALOG,normalizedName);
-  const isCustom=Boolean(originalName)&&!isKnown;
-  const selectedName=isKnown?normalizedName:(isCustom?PACKAGE_CUSTOM_OPTION:(instMode?Object.keys(INSTITUTION_CATALOG[inst]||{})[0]:'FLEKSIBEL'));
-  const defaultQty=data.BERAT!==undefined&&data.BERAT!==null&&data.BERAT!==''
-    ?String(data.BERAT)
-    :(instMode?String(institutionDefaultQuantity(inst,selectedName==='__CUSTOM__'?'':selectedName)):'1');
-  let initialAmount;
-  if(data.TAGIHAN!==undefined&&data.TAGIHAN!==null&&String(data.TAGIHAN)!==''){
-    initialAmount=String(data.TAGIHAN);
-  }else if(isCustom){
-    initialAmount='0';
-  }else{
-    initialAmount=instMode
-      ?String(institutionItemAmount(inst,selectedName,defaultQty))
-      :String(regularPackageAmount(selectedName,defaultQty));
-  }
-
-  const options=instMode
-    ? Object.entries(INSTITUTION_CATALOG[inst]||{}).map(([name,price])=>'<option value="'+esc(name)+'" '+(name===selectedName?'selected':'')+'>'+esc(institutionPackageLabel(inst,name,price))+'</option>').join('')
-    : PACKAGES.map(name=>'<option value="'+esc(name)+'" '+(name===selectedName?'selected':'')+'>'+esc(packageOptionLabel(name))+'</option>').join('');
-  const customOption='<option value="'+PACKAGE_CUSTOM_OPTION+'" '+(isCustom?'selected':'')+'>CUSTOM — Isi nama paket sendiri</option>';
-  const unit=instMode?'pcs':(PACKAGE_CATALOG[selectedName]?.unit||'unit');
-  const customValue=isCustom?originalName:'';
-  row.dataset.mode=instMode?'INSTANSI':'REGULER';
-  row.innerHTML=`<div class="flex gap-2">
-    <select class="input package flex-1">${options}${customOption}</select>
-    <button type="button" onclick="this.closest('.package-row').remove();calcTotal()" class="w-10 rounded-xl bg-red-50 text-red-600"><i class="fa-solid fa-trash"></i></button>
-  </div>
-  <input class="input custom-package-name mt-2" style="${isCustom?'':'display:none'}" value="${esc(customValue)}" placeholder="Isi nama paket custom sendiri">
-  <div class="grid grid-cols-2 gap-2 mt-2">
-    <input class="input weight num-input" ${unit==='kg'?'inputmode="decimal"':'inputmode="numeric" data-int="1"'} value="${esc(defaultQty)}" placeholder="${unit==='kg'?'Berat (KG)':'Jumlah ('+esc(unit.toUpperCase())+')'}">
-    <input class="input amount num-input" data-int="1" inputmode="numeric" value="${esc(initialAmount)}" placeholder="Total tagihan (editable)">
-  </div>`;
-  $('packageRows').appendChild(row);
-
-  const select=row.querySelector('.package');
-  const customName=row.querySelector('.custom-package-name');
-  const qty=row.querySelector('.weight');
-  const amount=row.querySelector('.amount');
-
-  const sync=(recalculate=true)=>{
-    const custom=select.value===PACKAGE_CUSTOM_OPTION;
-    customName.style.display=custom?'':'none';
-    let currentUnit=instMode?'pcs':(custom?'unit':(PACKAGE_CATALOG[select.value]?.unit||'unit'));
-    qty.dataset.int=(!instMode&&currentUnit==='kg')?'':'1';
-    qty.inputMode=(!instMode&&currentUnit==='kg')?'decimal':'numeric';
-    qty.placeholder=(!instMode&&currentUnit==='kg')?'Berat (KG)':'Jumlah ('+currentUnit.toUpperCase()+')';
-    if(recalculate){
-      if(custom)amount.value='0';
-      else if(instMode)amount.value=String(institutionItemAmount(inst,select.value,qty.value));
-      else amount.value=String(regularPackageAmount(select.value,qty.value));
-    }
-    calcTotal();
-  };
-  select.addEventListener('change',()=>sync(true));
-  qty.addEventListener('input',()=>sync(true));
-  customName.addEventListener('input',calcTotal);
-  amount.addEventListener('input',calcTotal);
-  sync(false);
-}
-
-function calcTotal(){
-  let total=0;
-  document.querySelectorAll('#packageRows .amount').forEach(field=>{
-    total+=receiptParseMoney(field.value);
-  });
-  const totalNode=$('orderTotal');
-  if(totalNode)totalNode.textContent=rupiah(total);
-}
-
-document.addEventListener('change',e=>{if(e.target.id==='f-instansi'&&orderMode==='INSTANSI'){const rows=$('packageRows');rows.innerHTML='';addPackage();calcTotal()}});
-
-function draftOrder(e){
-  e.preventDefault();
-  const rows=[...document.querySelectorAll('#packageRows .package-row')];
-  if(!rows.length){
-    toast(orderMode==='INSTANSI'?'Tambahkan minimal satu item':'Tambahkan minimal satu paket',false);
-    return;
-  }
-
-  for(const row of rows){
-    const select=row.querySelector('.package');
-    const paket=packageNameFromRow(row);
-    if(select?.value===PACKAGE_CUSTOM_OPTION&&!paket){
-      toast('Isi nama paket untuk opsi Custom terlebih dahulu.',false);
-      row.querySelector('.custom-package-name')?.focus();
-      return;
-    }
-  }
-
-  if(orderMode==='INSTANSI'){
-    const inst=$('f-instansi')?.value||'SECATA';
-    for(const row of rows){
-      const paket=packageNameFromRow(row);
-      if(row.querySelector('.package').value===PACKAGE_CUSTOM_OPTION)continue;
-      const qty=Math.round(parseOrderQuantity(row.querySelector('.weight').value));
-      const size=institutionPackageSize(inst,paket);
-      if(institutionFixedPackage(inst,paket)&&(!(qty>0)||qty%size!==0)){
-        toast(paket+' harus berjumlah kelipatan '+size+' PCS.',false);
-        return;
-      }
-    }
-  }
-
-  draft={
-    NAMA:$('f-nama').value.trim(),
-    NO_WA:$('f-wa').value.trim(),
-    METODE_TRANSAKSI:$('f-payment').value,
-    JENIS_ORDER:orderMode,
-    NAMA_INSTANSI:orderMode==='INSTANSI'?$('f-instansi').value:'',
-    items:rows.map(row=>({
-      PAKET:packageNameFromRow(row),
-      BERAT:row.querySelector('.weight').value,
-      TAGIHAN:row.querySelector('.amount').value
-    }))
-  };
-
+async function restorePrinter(){
   try{
-    previewMode='create';
-    previewOrder={...draft,ORDER_ID:'PREVIEW'};
-    $('receiptPreview').innerHTML=receiptHTML(previewOrder);
-    setPreviewButtons('create');
-    $('previewTitle').textContent='Preview Struk';
-    $('previewSubtitle').textContent='Periksa sebelum menyimpan';
-    $('previewModal').classList.add('show');
-    document.body.classList.add('overflow-hidden');
-  }catch(err){
-    toast('Preview gagal: '+err.message,false);
-  }
+    if(await tryAuthorizedDevices()){setPrinterUI(true,'Terhubung');return true}
+  }catch(err){console.debug('Printer belum dapat dipulihkan:',err)}
+  printerCharacteristic=null;return false;
 }
 
-function getOrderType(order){
-  const source = order && typeof order === 'object'
-    ? order
-    : { ORDER_ID: order };
-
-  const id = String(source.ORDER_ID || '').trim().toUpperCase();
-  const items = Array.isArray(source.items) ? source.items : [];
-  const itemIds = items.map(item =>
-    String(item && item.ITEM_ID || '').trim().toUpperCase()
-  );
-
-  // Prioritaskan ITEM_ID, karena ORDER_ID baru bersifat numerik global.
-  for (const instansi of ['SECATA', 'SECABA', 'PUSPOMAD']) {
-    if (itemIds.some(itemId => itemId.startsWith(instansi + '-'))) {
-      return { type: 'INSTANSI', instansi };
-    }
-  }
-
-  // Kompatibilitas untuk data lama yang memakai ORDER_ID ber-prefix.
-  for (const instansi of ['SECATA', 'SECABA', 'PUSPOMAD']) {
-    if (id.startsWith(instansi + '-')) {
-      return { type: 'INSTANSI', instansi };
-    }
-  }
-
-  // Fallback jika backend kelak mengirim jenis/nama instansi di order.
-  const explicitType = String(source.JENIS_ORDER || '').trim().toUpperCase();
-  const explicitInstansi = String(source.NAMA_INSTANSI || '').trim().toUpperCase();
-  if (explicitType === 'INSTANSI' &&
-      ['SECATA', 'SECABA', 'PUSPOMAD'].includes(explicitInstansi)) {
-    return { type: 'INSTANSI', instansi: explicitInstansi };
-  }
-
-  return { type: 'REGULER', instansi: '' };
+async function choosePrinter(){
+  return await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:PRINTER_OPTIONAL_SERVICES});
 }
 
-function updateOrderBackupAlert(){
-  const tray=$('globalDeadlineTray');
-  if(!tray)return;
-  const existing=$('orderBackupAlert');
-  const shouldShow=(orders||[]).length>=700;
-  if(!shouldShow){
-    existing?.remove();
-    return;
-  }
-  if(existing)return;
-  const alert=document.createElement('div');
-  alert.id='orderBackupAlert';
-  alert.className='mb-4 rounded-2xl border-2 border-red-600 bg-red-50 px-5 py-5 text-red-900 shadow-sm';
-  alert.innerHTML='<div class="flex items-start gap-4"><div class="w-12 h-12 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div><div><div class="text-base sm:text-lg font-black uppercase tracking-wide">DEAR FORTUNA</div><div class="text-sm sm:text-base font-extrabold leading-relaxed mt-1">Data order sudah mencapai 700 selama menggunakan sistem ini, segera hubungi developer untuk backup data demi kenyamanan dan kecepatan operasional.</div></div></div>';
-  tray.parentNode.insertBefore(alert,tray);
-}
-
-function renderOrders(){
-  const q=($('search')?.value||'').toLowerCase();
-  const activeMode=orderMode==='INSTANSI'?'INSTANSI':'REGULER';
-  const list=orders.filter(o=>{
-    const items=o.items||[];
-    const identity=getOrderType(o);
-    const matchesMode=identity.type===activeMode;
-    const matchesStatus=statusFilter==='ALL'||items.some(i=>String(i.STATUS||'').toUpperCase()===statusFilter);
-    const matchesSearch=(o.ORDER_ID+' '+identity.type+' '+identity.instansi+' '+o.NAMA+' '+o.PAKET+' '+items.map(i=>i.PAKET).join(' ')).toLowerCase().includes(q);
-    return matchesMode&&matchesStatus&&matchesSearch;
-  });
-  $('orderCount').textContent=list.length+' order'+(statusFilter!=='ALL'?' • filter '+statusFilter:'')+' • '+activeMode;
-  $('orderRows').innerHTML=list.map(o=>{
-    const identity=getOrderType(o);
-    const unpaid=o.STATUS_PEMBAYARAN==='BELUM LUNAS';
-    const isPaid=String(o.STATUS_PEMBAYARAN||'').trim().toUpperCase()==='LUNAS';
-    const allDone=(o.items||[]).length>0&&(o.items||[]).every(i=>i.STATUS==='SELESAI');
-    const itemHtml=(o.items||[]).map(i=>`
-      <div class="order-item">
-        <div class="order-item-head">
-          <div class="order-item-name">${esc(packageDisplayName(i.PAKET))}</div>
-          <span class="pill s-${esc(i.STATUS)}">${esc(i.STATUS)}</span>
-          <button onclick="deleteItem('${esc(i.ITEM_ID)}')" title="Hapus item ${esc(i.ITEM_ID)}" class="btn text-red-600 bg-red-50 rounded-md px-1.5 py-0.5 text-[9px]"><i class="fa-solid fa-trash"></i></button>
-        </div>
-        <div class="order-item-meta"><span>${esc(i.BERAT)} ${getOrderUnit(o,i.PAKET)}</span><span>•</span><span>${rupiah(i.TAGIHAN)}</span></div>
-      </div>`).join('');
-    const itemActions=(o.items||[]).filter(i=>i.STATUS!=='SELESAI').map(i=>`
-      <div class="order-action-item">
-        <span class="text-[8px] font-black text-slate-400 self-center mr-1">${esc(i.ITEM_ID)}</span>
-        <button onclick="editItem('${esc(i.ITEM_ID)}')" title="Edit ${esc(i.ITEM_ID)}" class="btn text-slate-500 bg-slate-100 rounded-lg px-2 py-1 text-[10px]"><i class="fa-solid fa-pen"></i></button>
-        ${i.STATUS==='DITERIMA'?'<button onclick="setStatus(\''+esc(i.ITEM_ID)+'\',\'DIPROSES\')" class="btn text-[9px] bg-orange-50 text-orange-700 rounded-lg px-2 py-1">PROSES</button>':''}
-        ${i.STATUS==='DIPROSES'?'<button onclick="setStatus(\''+esc(i.ITEM_ID)+'\',\'QC\')" class="btn text-[9px] bg-blue-50 text-blue-700 rounded-lg px-2 py-1">QC</button>':''}
-        ${i.STATUS==='QC'||i.STATUS==='DIPROSES'?'<button onclick="setStatus(\''+esc(i.ITEM_ID)+'\',\'SIAP\')" class="btn text-[9px] bg-emerald-50 text-emerald-700 rounded-lg px-2 py-1">SIAP</button>':''}
-        ${i.STATUS==='SIAP'?'<button onclick="setStatus(\''+esc(i.ITEM_ID)+'\',\'SELESAI\')" class="btn text-[9px] bg-slate-900 text-white rounded-lg px-2 py-1">SELESAI</button>':''}
-      </div>`).join('');
-    return `<tr class="border-t border-slate-100 align-top ${isPaid?'bg-emerald-50':''}">
-      <td class="px-3 py-2.5 whitespace-nowrap">
-        <div class="flex items-center gap-2">
-          <span class="font-black">#${esc(o.ORDER_ID)}</span>
-          ${identity.type==='INSTANSI'?'<span class="inline-flex items-center rounded-full bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 text-[8px] font-black tracking-wide">INSTANSI • '+esc(identity.instansi)+'</span>':'<span class="inline-flex items-center rounded-full bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 text-[8px] font-black tracking-wide">REGULER</span>'}
-        </div>
-        <div class="text-[9px] text-slate-400 mt-0.5">${o.START?esc(receiptFormatDate(receiptParseDate(o.START))):''}</div>
-      </td>
-      <td class="px-3 py-2.5 min-w-[130px]"><b class="text-xs">${esc(o.NAMA)}</b><div class="text-[9px] text-slate-400">${esc(o.NO_WA)}</div>${unpaid?'<span class="pill unpaid inline-block mt-1">BELUM LUNAS</span>':''}</td>
-      <td class="px-3 py-2.5 min-w-[270px]"><div class="order-package-list">${itemHtml}</div></td>
-      <td class="px-3 py-2.5 whitespace-nowrap"><div class="order-total"><span class="order-total-label">Total</span><span class="order-total-value">${rupiah(getOrderTotalAmount(o))}</span></div></td>
-      <td class="px-3 py-2.5 min-w-[185px]"><div class="order-actions">
-        <div class="order-action-top">
-          ${unpaid&&!allDone?'<button onclick="openPay(\''+esc(o.ORDER_ID)+'\')" class="btn text-[10px] font-black bg-red-50 text-red-700 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-check mr-1"></i>LUNAS</button>':''}
-          <button onclick="printOrder('${esc(o.ORDER_ID)}')" title="Print" class="btn text-slate-600 bg-slate-100 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-print"></i></button>
-          <button onclick="waOrder('${esc(o.ORDER_ID)}')" title="WhatsApp" class="btn text-emerald-700 bg-emerald-50 rounded-lg px-2.5 py-1.5"><i class="fa-brands fa-whatsapp"></i></button>
-          <button onclick="deleteOrder('${esc(o.ORDER_ID)}')" title="Hapus order permanen" class="btn text-red-700 bg-red-50 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-trash"></i></button>
-        </div>
-        ${!allDone&&itemActions?'<div class="order-action-status">'+itemActions+'</div>':''}
-      </div></td>
-    </tr>`;
-  }).join('')||`<tr><td colspan="5" class="p-10 text-center text-slate-400">Belum ada order ${activeMode.toLowerCase()}.</td></tr>`;
-}
-
-function toggleStatusFilter(filter,force=false){if(!force&&statusFilter===filter&&filter!=='ALL')statusFilter='ALL';else statusFilter=filter;document.querySelectorAll('.summary-filter').forEach(b=>b.classList.toggle('active',b.dataset.filter===statusFilter));renderOrders()}
-
-function renderSummary(){
-  const activeMode=orderMode==='INSTANSI'?'INSTANSI':'REGULER';
-  const modeOrders=orders.filter(o=>getOrderType(o).type===activeMode);
-  const counts={total:modeOrders.length,diterima:0,diproses:0,qc:0,siap:0,selesai:0};
-  modeOrders.forEach(o=>(o.items||[]).forEach(i=>{
-    const s=String(i.STATUS||'').toLowerCase();
-    if(s==='diterima')counts.diterima++;
-    else if(s==='diproses')counts.diproses++;
-    else if(s==='qc')counts.qc++;
-    else if(s==='siap')counts.siap++;
-    else if(s==='selesai')counts.selesai++;
-  }));
-  $('sum-total').textContent=counts.total;
-  $('sum-diterima').textContent=counts.diterima;
-  $('sum-diproses').textContent=counts.diproses;
-  $('sum-qc').textContent=counts.qc;
-  $('sum-siap').textContent=counts.siap;
-  $('sum-selesai').textContent=counts.selesai;
-}
-let summary={};
-
-async function loadDashboard(silent=false){
+async function connectPrinter(){
+  if(printerConnecting)return !!printerCharacteristic;
+  if(!navigator.bluetooth){toast('Browser tidak mendukung Web Bluetooth. Gunakan Chrome/Edge.',false);return false}
+  const btn=$('printerBtn'),icon=$('printerIcon'),txt=$('printerText');
+  printerConnecting=true;if(btn)btn.disabled=true;if(icon)icon.className='fa-solid fa-spinner fa-spin mr-1';if(txt)txt.textContent='Mencari printer...';
   try{
-    const j=await api('read');
-    orders=j.data?.orders||[];
-    updateOrderBackupAlert();
-    renderSummary();
-    renderOrders();
-    if(!silent)toast('Data berhasil diperbarui')
-  }catch(e){toast('Gagal memuat dashboard: '+e.message,false)}
-}
-
-const deletingOrderIds=new Set();
-
-async function deleteOrder(id){
-  const order=(orders||[]).find(o=>String(o.ORDER_ID)===String(id));
-  if(!order)return toast('Order tidak ditemukan. Refresh dashboard lalu coba lagi.',false);
-  if(deletingOrderIds.has(String(id)))return;
-  const itemCount=Array.isArray(order.items)?order.items.length:0;
-  const approved=confirm(
-    'HAPUS ORDER PERMANEN?\n\n'+
-    'Order: #'+id+'\n'+
-    'Pelanggan: '+(order.NAMA||'-')+'\n'+
-    'Jumlah item: '+itemCount+'\n\n'+
-    'Semua baris order ini akan dihapus dari backend dan tidak bisa dipulihkan dari dashboard. Lanjutkan?'
-  );
-  if(!approved)return;
-  deletingOrderIds.add(String(id));
-  renderOrders();
-  try{
-    await api('delete_order',{ORDER_ID:id});
-    await loadDashboard(true);
-    await loadDeadline();
-    toast('Permintaan hapus order #'+id+' dikirim. Periksa daftar order untuk memastikan data sudah hilang.');
+    // 1) pakai device yang sedang dipegang
+    if(printer?.gatt){
+      try{
+        bindPrinterDisconnect(printer);
+        const c=await findWritableCharacteristic(printer);
+        if(c){printerCharacteristic=c;setPrinterUI(true,'Terhubung');toast('Printer terhubung');return true}
+      }catch(e){console.debug('[printer] reuse gagal:',e)}
+    }
+    // 2) device yang pernah diizinkan
+    try{
+      if(await tryAuthorizedDevices()){setPrinterUI(true,'Terhubung');toast('Printer terhubung');return true}
+    }catch(e){console.debug('[printer] getDevices gagal:',e)}
+    // 3) minta pairing baru
+    const dev=await choosePrinter();
+    bindPrinterDisconnect(dev);
+    const c=await findWritableCharacteristic(dev);
+    if(!c)throw new Error('Printer ditemukan, tetapi characteristic Bluetooth untuk mengirim data tidak ditemukan');
+    printer=dev;printerCharacteristic=c;
+    setPrinterUI(true,'Terhubung');toast('Printer '+(printer.name||'Bluetooth')+' terhubung');return true;
   }catch(e){
-    toast('Gagal menghapus order #'+id+': '+e.message,false);
-  }finally{
-    deletingOrderIds.delete(String(id));
-    renderOrders();
+    printerCharacteristic=null;setPrinterUI(false,'Hubungkan ke printer');
+    console.error('[printer] connect gagal:',e);
+    toast(e?.name==='NotFoundError'?'Pemilihan printer dibatalkan.':(e?.message||'Gagal menghubungkan printer.'),false);return false;
+  }finally{printerConnecting=false;if(btn)btn.disabled=false}
+}
+
+async function ensurePrinter(){
+  if(printerCharacteristic&&printer?.gatt?.connected)return true;
+  if(printer?.gatt){
+    try{
+      bindPrinterDisconnect(printer);
+      const c=await findWritableCharacteristic(printer);
+      if(c){printerCharacteristic=c;setPrinterUI(true,'Terhubung');return true}
+    }catch(e){console.debug('[printer] reconnect gagal:',e);printerCharacteristic=null}
   }
+  return false;
 }
 
-const deletingItemIds=new Set();
-async function deleteItem(itemId){
-  const id=String(itemId||'');
-  const found=findItem(id);
-  if(!found)return toast('Item tidak ditemukan. Refresh dashboard lalu coba lagi.',false);
-  if(deletingItemIds.has(id))return;
-  const {o,i}=found;
-  const itemCount=Array.isArray(o.items)?o.items.length:0;
-  // Item terakhir = sama dengan menghapus order (pakai konfirmasi hapus order)
-  if(itemCount<=1)return deleteOrder(o.ORDER_ID);
-  const approved=confirm(
-    'HAPUS ITEM PERMANEN?\n\n'+
-    'Order: #'+o.ORDER_ID+'\n'+
-    'Pelanggan: '+(o.NAMA||'-')+'\n'+
-    'Item: '+id+' — '+packageDisplayName(i.PAKET)+'\n'+
-    'Jumlah: '+i.BERAT+' '+getOrderUnit(o,i.PAKET)+'\n'+
-    'Tagihan: '+rupiah(i.TAGIHAN)+'\n\n'+
-    'Item ini akan dihapus dari backend dan tidak bisa dipulihkan dari dashboard. Total order akan berubah. Lanjutkan?'
-  );
-  if(!approved)return;
-  deletingItemIds.add(id);
-  try{
-    await api('delete_item',{ITEM_ID:id});
-    await loadDashboard(true);
-    await loadDeadline();
-    toast('Item '+id+' berhasil dihapus');
-  }catch(e){
-    toast('Gagal menghapus item '+id+': '+e.message,false);
-  }finally{
-    deletingItemIds.delete(id);
-  }
-}
+/* -------------------------- Logo: raster per pita -------------------------- */
 
-function findItem(id){for(const o of orders){const i=(o.items||[]).find(x=>x.ITEM_ID===id);if(i)return{o,i}}return null}
-
-function orderMoneyValue(value){
-  return receiptParseMoney(value);
-}
-function getOrderTotalAmount(order){
-  const items=Array.isArray(order?.items)?order.items:[];
-  const hasItemAmounts=items.some(item=>item?.TAGIHAN!==undefined&&item?.TAGIHAN!==null&&String(item.TAGIHAN).trim()!=='');
-  return hasItemAmounts?items.reduce((sum,item)=>sum+orderMoneyValue(item.TAGIHAN),0):orderMoneyValue(order?.TOTAL_TAGIHAN);
-}
-function isInstitutionOrder(order){
-  return getOrderType(order).type==='INSTANSI' ||
-    String(order?.JENIS_ORDER||'').toUpperCase()==='INSTANSI' ||
-    Boolean(String(order?.NAMA_INSTANSI||'').trim());
-}
-function getOrderUnit(order,packageName){
-  if(isInstitutionOrder(order))return 'pcs';
-  if(packageName===undefined||packageName===null||String(packageName)==='')return 'kg';
-  return PACKAGE_CATALOG[String(packageName).trim().toUpperCase()]?.unit||'unit';
-}
-function parseOrderQuantity(value){
-  const raw=String(value??'').trim().replace(/,/g,'.').replace(/[^\d.-]/g,'');
-  const n=Number(raw);
-  return Number.isFinite(n)?n:0;
-}
-
-async function setStatus(item,status){if(!confirm('Ubah item menjadi '+status+'?'))return;try{await api('update_status',{ITEM_ID:item,STATUS:status});await loadDashboard(true);if(status==='SIAP')loadDeadline();toast('Status berhasil diperbarui')}catch(e){toast(e.message,false)}}
-
-async function markReady(item){if(!confirm('Tandai item sebagai SIAP?'))return;try{await api('ready_item',{ITEM_ID:item,STATUS:'SIAP'});await loadDashboard(true);await loadDeadline();toast('Item ditandai SIAP')}catch(e){toast(e.message,false)}}
-
-function ensureEditCustomInput(){
-  let wrapper=$('edit-custom-package-wrap');
-  if(!wrapper){
-    wrapper=document.createElement('label');
-    wrapper.id='edit-custom-package-wrap';
-    wrapper.className='block md:col-span-2';
-    wrapper.style.display='none';
-    wrapper.innerHTML='<span class="label">NAMA PAKET CUSTOM</span><input id="edit-custom-package-name" class="input" placeholder="Isi nama paket sendiri">';
-    $('edit-paket').closest('label').insertAdjacentElement('afterend',wrapper);
-  }
-  return {wrapper,input:$('edit-custom-package-name')};
-}
-
-function editItem(id){
-  const f=findItem(id);
-  if(!f)return toast('Item tidak ditemukan. Refresh dashboard lalu coba lagi.',false);
-  const o=f.o,i=f.i;
-  if(String(i.STATUS||'').toUpperCase()==='SELESAI')return toast('Item SELESAI tidak dapat diedit.',false);
-
-  const identity=getOrderType(o);
-  const instansi=identity.instansi||String(o.NAMA_INSTANSI||'').toUpperCase();
-  const inst=isInstitutionOrder(o);
-  const current=String(i.PAKET||'').trim();
-  const currentKey=current.toUpperCase();
-  const known=inst
-    ?Object.prototype.hasOwnProperty.call(INSTITUTION_CATALOG[instansi]||{},currentKey)
-    :Object.prototype.hasOwnProperty.call(PACKAGE_CATALOG,currentKey);
-  const custom=Boolean(current)&&!known;
-  const catalog=inst?Object.keys(INSTITUTION_CATALOG[instansi]||{}):[...PACKAGES];
-
-  $('edit-item').value=id;
-  $('edit-id').textContent='#'+o.ORDER_ID+' • '+id;
-  $('edit-nama').value=o.NAMA||'';
-  $('edit-wa').value=o.NO_WA||'';
-  const select=$('edit-paket');
-  select.innerHTML=(inst
-    ?catalog.map(p=>'<option value="'+esc(p)+'" '+(p===currentKey?'selected':'')+'>'+esc(institutionPackageLabel(instansi,p,INSTITUTION_CATALOG[instansi][p]))+'</option>').join('')
-    :catalog.map(p=>'<option value="'+esc(p)+'" '+(p===currentKey?'selected':'')+'>'+esc(packageOptionLabel(p))+'</option>').join('')
-  )+'<option value="'+PACKAGE_CUSTOM_OPTION+'" '+(custom?'selected':'')+'>CUSTOM — Isi nama paket sendiri</option>';
-  select.value=custom?PACKAGE_CUSTOM_OPTION:currentKey;
-  select.dataset.mode=inst?'INSTANSI':'REGULER';
-  select.dataset.instansi=instansi;
-  $('edit-paket-label').textContent=inst?'ITEM':'PAKET';
-
-  const customInput=ensureEditCustomInput();
-  customInput.input.value=custom?current:'';
-  customInput.wrapper.style.display=custom?'':'none';
-
-  $('edit-berat-label').textContent=inst?'JUMLAH (PCS)':(custom?'JUMLAH (UNIT)':(PACKAGE_CATALOG[currentKey]?.unit==='kg'?'BERAT (KG)':'JUMLAH ('+(PACKAGE_CATALOG[currentKey]?.unit||'unit').toUpperCase()+')'));
-  const qty=$('edit-berat');
-  const currentUnit=inst?'pcs':(custom?'unit':(PACKAGE_CATALOG[currentKey]?.unit||'unit'));
-  qty.dataset.int=(!inst&&currentUnit==='kg')?'':'1';
-  qty.inputMode=(!inst&&currentUnit==='kg')?'decimal':'numeric';
-  qty.value=inst?String(Math.round(parseOrderQuantity(i.BERAT))):String(i.BERAT??'');
-  $('edit-tagihan').value=String(orderMoneyValue(i.TAGIHAN));
-  $('edit-help').textContent='Harga awal mengikuti pricelist (rentang memakai tarif minimum) dan tetap bisa diedit. Mengubah paket atau jumlah akan menghitung ulang harga otomatis.';
-
-  select.onchange=()=>editRecalc(true);
-  qty.oninput=()=>editRecalc(true);
-  customInput.input.oninput=()=>{};
-  editRecalc(false);
-  $('editModal').classList.add('show');
-  document.body.classList.add('overflow-hidden');
-}
-
-function editRecalc(forceAuto=false){
-  const qtyField=$('edit-berat');
-  const select=$('edit-paket');
-  const input=$('edit-tagihan');
-  const inst=select.dataset.mode==='INSTANSI';
-  const instansi=select.dataset.instansi||'';
-  const custom=select.value===PACKAGE_CUSTOM_OPTION;
-  const customField=$('edit-custom-package-name');
-  if($('edit-custom-package-wrap'))$('edit-custom-package-wrap').style.display=custom?'':'none';
-  const paket=custom?String(customField?.value||'').trim():select.value;
-  const unit=inst?'pcs':(custom?'unit':(PACKAGE_CATALOG[paket]?.unit||'unit'));
-
-  qtyField.dataset.int=(!inst&&unit==='kg')?'':'1';
-  qtyField.inputMode=(!inst&&unit==='kg')?'decimal':'numeric';
-  $('edit-berat-label').textContent=inst?'JUMLAH (PCS)':(unit==='kg'?'BERAT (KG)':'JUMLAH ('+unit.toUpperCase()+')');
-  if(qtyField.dataset.int==='1'&&qtyField.value!==''){
-    const normalized=String(Math.max(0,Math.round(parseOrderQuantity(qtyField.value))));
-    if(qtyField.value!==normalized)qtyField.value=normalized;
-  }
-
-  input.readOnly=false;
-  input.classList.add('num-input');
-  if(forceAuto){
-    if(custom)input.value='0';
-    else if(inst)input.value=String(institutionItemAmount(instansi,paket,qtyField.value));
-    else input.value=String(regularPackageAmount(paket,qtyField.value));
-  }
-}
-
-async function saveEdit(e){
-  e.preventDefault();
-  const btn=$('editSaveBtn'),txt=$('editSaveText');
-  if(btn.disabled)return;
-  const id=$('edit-item').value,f=findItem(id);
-  if(!f)return toast('Item tidak ditemukan. Refresh dashboard lalu coba lagi.',false);
-  const o=f.o,old=f.i;
-  if(String(old.STATUS||'').toUpperCase()==='SELESAI')return toast('Item SELESAI tidak dapat diedit.',false);
-
-  const selectedPackage=$('edit-paket').value;
-  const paket=selectedPackage===PACKAGE_CUSTOM_OPTION
-    ?String($('edit-custom-package-name')?.value||'').trim()
-    :selectedPackage;
-  if(!paket)return toast('Isi nama paket custom terlebih dahulu.',false);
-
-  const inst=isInstitutionOrder(o);
-  const unit=inst?'pcs':(PACKAGE_CATALOG[paket]?.unit||'unit');
-  const rawQty=parseOrderQuantity($('edit-berat').value);
-  const qty=unit==='kg'?rawQty:Math.round(rawQty);
-  if(!(qty>0))return toast((unit==='kg'?'Berat (KG)':'Jumlah ('+unit.toUpperCase()+')')+' harus lebih dari 0.',false);
-  const identityForPackage=getOrderType(o);
-  const instansiForPackage=identityForPackage.instansi||String(o.NAMA_INSTANSI||$('edit-paket').dataset.instansi||'').toUpperCase();
-  const packageSize=institutionPackageSize(instansiForPackage,paket);
-  if(inst&&institutionFixedPackage(instansiForPackage,paket)&&qty%packageSize!==0)return toast(paket+' harus berjumlah kelipatan '+packageSize+' PCS per paket.',false);
-  const bill=orderMoneyValue($('edit-tagihan').value);
-  if(!(bill>0))return toast('Tagihan harus lebih dari 0.',false);
-
-  const nama=$('edit-nama').value.trim()||'TANPA NAMA';
-  const wa=$('edit-wa').value.trim();
-  const nameOrWaChanged=nama!==String(o.NAMA||'TANPA NAMA')||wa!==String(o.NO_WA||'');
-  btn.disabled=true;
-  if(txt)txt.textContent='Menyimpan...';
-  let syncFailed=false;
-  try{
-    await api('order_edit',{
-      ITEM_ID:id,NAMA:nama,NO_WA:wa,PAKET:paket,
-      BERAT:String(qty),
-      TAGIHAN:String(Math.round(bill))
-    });
-    if(nameOrWaChanged){
-      for(const sibling of (o.items||[])){
-        if(sibling.ITEM_ID===id||String(sibling.STATUS||'').toUpperCase()==='SELESAI')continue;
+// Hasil:
+//   []      -> logo dimatikan / tidak dikonfigurasi (bukan error)
+//   null    -> logo seharusnya dicetak tapi GAGAL (timeout / decode error)
+//   [bands] -> array Uint8Array, tiap elemen = 1 perintah GS v 0 untuk maks LOGO_BAND_ROWS baris
+function logoToBands(){
+  return new Promise(resolve=>{
+    try{
+      if(!PRINT_LOGO||typeof FORTUNA_LOGO_PNG==='undefined'||!FORTUNA_LOGO_PNG)return resolve([]);
+      const img=new Image();
+      const timer=setTimeout(()=>resolve(null),3000);
+      img.onload=()=>{
+        clearTimeout(timer);
         try{
-          await api('order_edit',{ITEM_ID:sibling.ITEM_ID,NAMA:nama,NO_WA:wa});
-        }catch(err){
-          syncFailed=true;
-          console.error('Gagal menyinkronkan nama/WA item '+sibling.ITEM_ID,err);
-        }
+          const natW=img.naturalWidth||LOGO_WIDTH,natH=img.naturalHeight||LOGO_WIDTH;
+          const w=Math.max(8,Math.floor(Math.min(LOGO_WIDTH,PRINTER_WIDTH,natW)/8)*8);
+          const h=Math.max(1,Math.round(natH*(w/natW)));
+          const canvas=document.createElement('canvas');
+          canvas.width=w;canvas.height=h;
+          const ctx=canvas.getContext('2d',{willReadFrequently:true});
+          ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+          ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);   // transparan -> putih
+          ctx.drawImage(img,0,0,w,h);
+          const px=ctx.getImageData(0,0,w,h).data;
+          const rowBytes=w>>3;
+          const bands=[];
+          for(let y0=0;y0<h;y0+=LOGO_BAND_ROWS){
+            const rows=Math.min(LOGO_BAND_ROWS,h-y0);
+            const band=new Uint8Array(8+rowBytes*rows);
+            band.set([0x1d,0x76,0x30,0x00,rowBytes&255,(rowBytes>>8)&255,rows&255,(rows>>8)&255]);
+            for(let y=0;y<rows;y++){
+              for(let x=0;x<w;x++){
+                const i=((y0+y)*w+x)*4;
+                const gray=px[i]*0.299+px[i+1]*0.587+px[i+2]*0.114;
+                if(gray<LOGO_THRESHOLD)band[8+y*rowBytes+(x>>3)]|=0x80>>(x&7);
+              }
+            }
+            bands.push(band);
+          }
+          resolve(bands);
+        }catch(e){console.warn('[printer] logo gagal diproses:',e);resolve(null)}
+      };
+      img.onerror=()=>{clearTimeout(timer);resolve(null)};
+      img.src=FORTUNA_LOGO_PNG;
+    }catch(_){resolve(null)}
+  });
+}
+
+/* ------------------------------ Susun ESC/POS ------------------------------ */
+
+// Mengembalikan {segments:[{data:Uint8Array, delay:ms}], logoSkipped:boolean}
+// Isi struk = buildReceiptLines(buildReceiptModel(o)) -> sama persis dengan preview "Sesuai printer".
+async function buildFortunaEscPos(o){
+  const model=buildReceiptModel(o);
+  const lines=buildReceiptLines(model);
+  const segs=[];
+  let bytes=[];
+  let align=1,bold=0,linesInSeg=0;
+  let logoSkipped=false;
+
+  const flush=delay=>{
+    if(bytes.length){segs.push({data:Uint8Array.from(bytes),delay:delay||0});bytes=[]}
+    linesInSeg=0;
+  };
+
+  // reset printer, spasi baris default, Font A, rata tengah, bold off
+  segs.push({data:Uint8Array.of(0x1b,0x40, 0x1b,0x32, 0x1b,0x4d,0x00, 0x1b,0x61,0x01, 0x1b,0x45,0x00),delay:80});
+
+  for(const line of lines){
+    if(line.logo){
+      const bands=await logoToBands();
+      if(bands===null)logoSkipped=true;
+      else if(bands.length){
+        flush(0);
+        bands.forEach(b=>segs.push({data:b,delay:LOGO_BAND_DELAY_MS}));
       }
+      continue;
     }
-    closeModal('editModal');
-    await loadDashboard(true);
-    if(syncFailed)toast('Perubahan item tersimpan, tetapi nama/WA pada sebagian item lain gagal diperbarui. Refresh dan periksa kembali.',false);
-    else toast('Item diperbarui • Tagihan '+rupiah(bill));
-  }catch(err){
-    toast('Gagal menyimpan perubahan: '+err.message,false);
-  }finally{
-    btn.disabled=false;
-    if(txt)txt.textContent='Simpan Perubahan';
+    const a=line.align==='center'?1:0;
+    const b=line.bold?1:0;
+    if(a!==align){bytes.push(0x1b,0x61,a);align=a}
+    if(b!==bold){bytes.push(0x1b,0x45,b);bold=b}
+    const t=String(line.text||'').slice(0,RECEIPT_COLUMNS);
+    for(let i=0;i<t.length;i++){
+      const c=t.charCodeAt(i);
+      bytes.push(c>=0x20&&c<=0x7e?c:0x3f);   // pengaman: hanya ASCII yang boleh lewat
+    }
+    bytes.push(0x0a);
+    if(++linesInSeg>=PRINTER_LINES_PER_SEGMENT)flush(PRINTER_SEGMENT_DELAY_MS);
+  }
+
+  // kembalikan state printer; feed kertas sudah ada di baris penutup (printer 58 mm tanpa cutter)
+  bytes.push(0x1b,0x45,0x00,0x1b,0x61,0x00);
+  flush(PRINTER_END_DELAY_MS);
+  return {segments:segs,logoSkipped};
+}
+
+/* --------------------------------- Kirim BLE ------------------------------- */
+
+async function writePrinterChunk(chunk){
+  const c=printerCharacteristic;
+  if(!c)throw new Error('Characteristic printer tidak tersedia.');
+  if(!chunk||!chunk.length)return;
+  for(let attempt=0;;attempt++){
+    try{
+      if(c.properties.write&&typeof c.writeValueWithResponse==='function'){
+        await c.writeValueWithResponse(chunk);
+        if(PRINTER_ACK_DELAY_MS)await sleep(PRINTER_ACK_DELAY_MS);
+      }else if(c.properties.writeWithoutResponse&&typeof c.writeValueWithoutResponse==='function'){
+        await c.writeValueWithoutResponse(chunk);
+        await sleep(PRINTER_CHUNK_DELAY_MS);
+      }else{
+        await c.writeValue(chunk);
+        await sleep(PRINTER_CHUNK_DELAY_MS);
+      }
+      return;
+    }catch(e){
+      // "GATT operation already in progress" = data belum terkirim, aman diulang
+      if(attempt<5&&/in progress/i.test(String(e?.message||e))){await sleep(100);continue}
+      throw e;
+    }
   }
 }
 
-function openPay(id){payOrder=id;$('payModal').classList.add('show')}
+async function writePrinterPayload(segments){
+  if(!printerCharacteristic)throw new Error('Characteristic printer tidak tersedia.');
+  for(const seg of segments){
+    for(let i=0;i<seg.data.length;i+=PRINTER_CHUNK_SIZE){
+      if(!printer?.gatt?.connected)throw new Error('Koneksi Bluetooth terputus saat mengirim data.');
+      await writePrinterChunk(seg.data.slice(i,i+PRINTER_CHUNK_SIZE));
+    }
+    if(seg.delay)await sleep(seg.delay);
+  }
+}
 
-async function pay(method){try{await api('payment_update',{ORDER_ID:payOrder,METODE_TRANSAKSI:method});closeModal('payModal');await loadDashboard(true);toast('Pembayaran #'+payOrder+' menjadi LUNAS')}catch(e){toast(e.message,false)}}
+// Mengembalikan {ok:true, logoSkipped:boolean}; melempar Error kalau gagal.
+async function printReceipt(o){
+  if(printerPrinting)throw new Error('Printer sedang mencetak, tunggu sebentar.');
+  printerPrinting=true;
+  try{
+    let ready=await ensurePrinter();
+    if(!ready){
+      ready=await connectPrinter();
+      if(!ready)throw new Error('Thermal printer belum terhubung. Hubungkan printer lalu coba cetak lagi.');
+    }
+
+    // 1) susun struk (kalau gagal di sini, koneksi printer dibiarkan)
+    let built;
+    try{
+      built=await buildFortunaEscPos(o);
+    }catch(err){
+      console.error('[printer] susun struk gagal:',err);
+      throw new Error('Gagal menyusun struk ('+(err?.message||err)+').');
+    }
+
+    // 2) kirim ke printer
+    try{
+      if(!printer?.gatt?.connected||!printerCharacteristic)throw new Error('Koneksi thermal printer terputus.');
+      await writePrinterPayload(built.segments);
+      return {ok:true,logoSkipped:built.logoSkipped};
+    }catch(err){
+      console.error('[printer] cetak gagal:',err);
+      // tutup koneksi lama dengan bersih; objek `printer` dipertahankan agar bisa sambung ulang
+      printerSelfDisconnect=true;
+      try{if(printer?.gatt?.connected)printer.gatt.disconnect()}catch(_){}
+      setTimeout(()=>{printerSelfDisconnect=false},1500);
+      printerCharacteristic=null;
+      setPrinterUI(false,'Hubungkan ke printer');
+      throw new Error('Cetak gagal ('+(err?.message||err)+'). Struk mungkin tercetak sebagian. Matikan-nyalakan printer, hubungkan ulang, lalu cetak ulang.');
+    }
+  }finally{printerPrinting=false}
+}
