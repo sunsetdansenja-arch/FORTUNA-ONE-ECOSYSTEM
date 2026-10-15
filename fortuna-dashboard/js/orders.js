@@ -335,6 +335,7 @@ function renderOrders(){
         <div class="order-item-head">
           <div class="order-item-name">${esc(packageDisplayName(i.PAKET))}</div>
           <span class="pill s-${esc(i.STATUS)}">${esc(i.STATUS)}</span>
+          <button onclick="deleteItem('${esc(i.ITEM_ID)}')" title="Hapus item ${esc(i.ITEM_ID)}" class="btn text-red-600 bg-red-50 rounded-md px-1.5 py-0.5 text-[9px]"><i class="fa-solid fa-trash"></i></button>
         </div>
         <div class="order-item-meta"><span>${esc(i.BERAT)} ${getOrderUnit(o,i.PAKET)}</span><span>•</span><span>${rupiah(i.TAGIHAN)}</span></div>
       </div>`).join('');
@@ -432,6 +433,39 @@ async function deleteOrder(id){
   }finally{
     deletingOrderIds.delete(String(id));
     renderOrders();
+  }
+}
+
+const deletingItemIds=new Set();
+async function deleteItem(itemId){
+  const id=String(itemId||'');
+  const found=findItem(id);
+  if(!found)return toast('Item tidak ditemukan. Refresh dashboard lalu coba lagi.',false);
+  if(deletingItemIds.has(id))return;
+  const {o,i}=found;
+  const itemCount=Array.isArray(o.items)?o.items.length:0;
+  // Item terakhir = sama dengan menghapus order (pakai konfirmasi hapus order)
+  if(itemCount<=1)return deleteOrder(o.ORDER_ID);
+  const approved=confirm(
+    'HAPUS ITEM PERMANEN?\n\n'+
+    'Order: #'+o.ORDER_ID+'\n'+
+    'Pelanggan: '+(o.NAMA||'-')+'\n'+
+    'Item: '+id+' — '+packageDisplayName(i.PAKET)+'\n'+
+    'Jumlah: '+i.BERAT+' '+getOrderUnit(o,i.PAKET)+'\n'+
+    'Tagihan: '+rupiah(i.TAGIHAN)+'\n\n'+
+    'Item ini akan dihapus dari backend dan tidak bisa dipulihkan dari dashboard. Total order akan berubah. Lanjutkan?'
+  );
+  if(!approved)return;
+  deletingItemIds.add(id);
+  try{
+    await api('delete_item',{ITEM_ID:id});
+    await loadDashboard(true);
+    await loadDeadline();
+    toast('Item '+id+' berhasil dihapus');
+  }catch(e){
+    toast('Gagal menghapus item '+id+': '+e.message,false);
+  }finally{
+    deletingItemIds.delete(id);
   }
 }
 
