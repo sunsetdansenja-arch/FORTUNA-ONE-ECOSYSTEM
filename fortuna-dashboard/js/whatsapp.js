@@ -4,7 +4,7 @@ function openWA(o){waTarget=o;$('waOrderInfo').textContent='Order #'+o.ORDER_ID+
 
 function waOrder(id){const o=orders.find(x=>x.ORDER_ID===id);if(!o)return;waTarget=o;$('waOrderInfo').textContent='Order #'+o.ORDER_ID+' • '+(o.NAMA||'-');const link=buildStatusLink(o);$('waStatusLink').textContent=link||'Link status belum dikonfigurasi';$('waModal').classList.add('show');document.body.classList.add('overflow-hidden')}
 
-function buildStatusLink(o){return STATUS_CHECK_BASE_URL||''}
+function buildStatusLink(o){const base=String(STATUS_CHECK_BASE_URL||'').trim();if(!base)return '';const code=String(o&&o.ORDER_ID||'').trim();if(!code)return base;return base+(base.includes('?')?'&':'?')+'code='+encodeURIComponent(code)}
 
 function normalizeWaNumber(v){let n=String(v||'').replace(/\D/g,'');if(n.startsWith('0'))n='62'+n.slice(1);return n}
 
