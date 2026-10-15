@@ -96,6 +96,7 @@ function receiptParseDate(value) {
   const raw = String(value == null ? '' : value).trim();
   if (!raw) return new Date();
   let iso = raw.indexOf('T') >= 0 ? raw : raw.replace(' ', 'T');
+  iso = iso.replace(/T(\d):/, 'T0$1:');   // "2026-10-14 1:10:34" (jam tanpa angka 0) -> "01:10:34"
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) iso += 'T00:00:00';
   const naiveSuffix = RECEIPT_NAIVE_TIME_IS === 'WIB' ? '+07:00' : 'Z';
   const d = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(iso) ? new Date(iso) : new Date(iso + naiveSuffix);
