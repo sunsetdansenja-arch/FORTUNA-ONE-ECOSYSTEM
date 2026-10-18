@@ -319,18 +319,36 @@ function updateOrderBackupAlert(){
   tray.parentNode.insertBefore(alert,tray);
 }
 
+function orderDateFilterValue(order){
+  const raw=String(order?.START??'').trim();
+  if(!raw)return '';
+  const match=raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(match){
+    const date=new Date(Number(match[1]),Number(match[2])-1,Number(match[3]));
+    if(date.getFullYear()===Number(match[1])&&date.getMonth()===Number(match[2])-1&&date.getDate()===Number(match[3]))return match[1]+'-'+match[2]+'-'+match[3];
+    return '';
+  }
+  const date=new Date(raw);
+  if(Number.isNaN(date.getTime()))return '';
+  return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
+}
+function resetOrderDateFilter(){if($('orderDateFrom'))$('orderDateFrom').value='';if($('orderDateTo'))$('orderDateTo').value='';renderOrders()}
 function renderOrders(){
   const q=($('search')?.value||'').toLowerCase();
+  const dateFrom=$('orderDateFrom')?.value||'';
+  const dateTo=$('orderDateTo')?.value||'';
   const activeMode=orderMode==='INSTANSI'?'INSTANSI':'REGULER';
   const list=orders.filter(o=>{
     const items=o.items||[];
     const identity=getOrderType(o);
+    const orderDate=orderDateFilterValue(o);
     const matchesMode=identity.type===activeMode;
     const matchesStatus=statusFilter==='ALL'||items.some(i=>String(i.STATUS||'').toUpperCase()===statusFilter);
     const matchesSearch=(o.ORDER_ID+' '+identity.type+' '+identity.instansi+' '+o.NAMA+' '+o.PAKET+' '+items.map(i=>i.PAKET).join(' ')).toLowerCase().includes(q);
-    return matchesMode&&matchesStatus&&matchesSearch;
+    const matchesDate=(!dateFrom||(orderDate&&orderDate>=dateFrom))&&(!dateTo||(orderDate&&orderDate<=dateTo));
+    return matchesMode&&matchesStatus&&matchesSearch&&matchesDate;
   });
-  $('orderCount').textContent=list.length+' order'+(statusFilter!=='ALL'?' • filter '+statusFilter:'')+' • '+activeMode;
+  $('orderCount').textContent=list.length+' order'+(statusFilter!=='ALL'?' • filter '+statusFilter:'')+((dateFrom||dateTo)?' • tanggal '+(dateFrom||'awal')+' s/d '+(dateTo||'sekarang'):'')+' • '+activeMode;
   $('orderRows').innerHTML=list.map(o=>{
     const identity=getOrderType(o);
     const unpaid=o.STATUS_PEMBAYARAN==='BELUM LUNAS';
@@ -362,6 +380,7 @@ function renderOrders(){
         </div>
         <div class="text-[9px] text-slate-400 mt-0.5">${o.START?esc(receiptFormatDate(receiptParseDate(o.START))):''}</div>
       </td>
+      <td class="px-3 py-2.5 whitespace-nowrap text-xs text-slate-600">${o.START?esc(receiptFormatDate(receiptParseDate(o.START))):'-'}</td>
       <td class="px-3 py-2.5 min-w-[130px]"><b class="text-xs">${esc(o.NAMA)}</b><div class="text-[9px] text-slate-400">${esc(o.NO_WA)}</div>${unpaid?'<span class="pill unpaid inline-block mt-1">BELUM LUNAS</span>':''}</td>
       <td class="px-3 py-2.5 min-w-[270px]"><div class="order-package-list">${itemHtml}</div></td>
       <td class="px-3 py-2.5 whitespace-nowrap"><div class="order-total"><span class="order-total-label">Total</span><span class="order-total-value">${rupiah(getOrderTotalAmount(o))}</span></div></td>
@@ -375,7 +394,7 @@ function renderOrders(){
         ${!allDone&&itemActions?'<div class="order-action-status">'+itemActions+'</div>':''}
       </div></td>
     </tr>`;
-  }).join('')||`<tr><td colspan="5" class="p-10 text-center text-slate-400">Belum ada order ${activeMode.toLowerCase()}.</td></tr>`;
+  }).join('')||`<tr><td colspan="6" class="p-10 text-center text-slate-400">Belum ada order ${activeMode.toLowerCase()}.</td></tr>`;
 }
 
 function toggleStatusFilter(filter,force=false){if(!force&&statusFilter===filter&&filter!=='ALL')statusFilter='ALL';else statusFilter=filter;document.querySelectorAll('.summary-filter').forEach(b=>b.classList.toggle('active',b.dataset.filter===statusFilter));renderOrders()}
