@@ -44,14 +44,18 @@ ${bodyHtml}
 
 function printOrders(){
   const q=String($('search')?.value||'').trim().toLowerCase();
+  const dateFrom=$('orderDateFrom')?.value||'';
+  const dateTo=$('orderDateTo')?.value||'';
   const activeMode=typeof orderMode!=='undefined'&&orderMode==='INSTANSI'?'INSTANSI':'REGULER';
   const list=(orders||[]).filter(o=>{
     const items=o.items||[];
     const identity=typeof getOrderType==='function'?getOrderType(o):{type:'REGULER',instansi:''};
+    const orderDate=typeof orderDateFilterValue==='function'?orderDateFilterValue(o):'';
     const matchesMode=identity.type===activeMode;
     const matchesStatus=statusFilter==='ALL'||items.some(i=>String(i.STATUS||'').toUpperCase()===statusFilter);
     const matchesSearch=(String(o.ORDER_ID||'')+' '+identity.type+' '+identity.instansi+' '+String(o.NAMA||'')+' '+String(o.PAKET||'')+' '+items.map(i=>i.PAKET).join(' ')).toLowerCase().includes(q);
-    return matchesMode&&matchesStatus&&matchesSearch;
+    const matchesDate=(!dateFrom||(orderDate&&orderDate>=dateFrom))&&(!dateTo||(orderDate&&orderDate<=dateTo));
+    return matchesMode&&matchesStatus&&matchesSearch&&matchesDate;
   });
 
   const filterLabel=statusFilter==='ALL'?'Semua status':statusFilter;
@@ -66,18 +70,19 @@ function printOrders(){
     const isPaid=paymentStatus.toUpperCase()==='LUNAS';
     return `<tr class="${isPaid?'paid':''}">
       <td>#${printEscape(o.ORDER_ID)}</td>
+      <td>${printEscape(typeof orderDateFilterValue==='function'&&o.START?receiptFormatDate(receiptParseDate(o.START)):'-')}</td>
       <td><b>${printEscape(o.NAMA)}</b><br>${printEscape(o.NO_WA)}</td>
       <td>${items||'-'}</td>
       <td>${printEscape(methodLabel)}</td>
       <td>${printEscape(paymentStatus)}</td>
       <td class="amount">${printMoney(typeof getOrderTotalAmount==='function'?getOrderTotalAmount(o):o.TOTAL_TAGIHAN)}</td>
     </tr>`;
-  }).join('')||'<tr><td colspan="6" style="text-align:center">Tidak ada order yang cocok.</td></tr>';
+  }).join('')||'<tr><td colspan="7" style="text-align:center">Tidak ada order yang cocok.</td></tr>';
 
   openPrintDocument(
     'Daftar Order — Fortuna Laundry',
-    `${list.length} order • Mode: ${scopeLabel} • Filter: ${filterLabel}${q?' • Pencarian: '+q:''}`,
-    `<table><thead><tr><th>Order</th><th>Pelanggan</th><th>Paket / Status</th><th>Metode Pembayaran</th><th>Status Pembayaran</th><th class="amount">Total</th></tr></thead><tbody>${rows}</tbody></table>
+    `${list.length} order • Mode: ${scopeLabel} • Filter: ${filterLabel}${dateFrom||dateTo?' • Tanggal: '+(dateFrom||'awal')+' s/d '+(dateTo||'sekarang'):''}${q?' • Pencarian: '+q:''}`,
+    `<table><thead><tr><th>Order</th><th>Tanggal</th><th>Pelanggan</th><th>Paket / Status</th><th>Metode Pembayaran</th><th>Status Pembayaran</th><th class="amount">Total</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="total">Total nominal: ${printMoney(list.reduce((s,o)=>s+(typeof getOrderTotalAmount==='function'?getOrderTotalAmount(o):(Number(String(o.TOTAL_TAGIHAN||'').replace(/[^0-9.-]/g,''))||0)),0))}</div>`
   );
 }
