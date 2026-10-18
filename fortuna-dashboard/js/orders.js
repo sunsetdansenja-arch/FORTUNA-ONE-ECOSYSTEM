@@ -378,7 +378,6 @@ function renderOrders(){
           <span class="font-black">#${esc(o.ORDER_ID)}</span>
           ${identity.type==='INSTANSI'?'<span class="inline-flex items-center rounded-full bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 text-[8px] font-black tracking-wide">INSTANSI • '+esc(identity.instansi)+'</span>':'<span class="inline-flex items-center rounded-full bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 text-[8px] font-black tracking-wide">REGULER</span>'}
         </div>
-        <div class="text-[9px] text-slate-400 mt-0.5">${o.START?esc(receiptFormatDate(receiptParseDate(o.START))):''}</div>
       </td>
       <td class="px-3 py-2.5 whitespace-nowrap text-xs text-slate-600">${o.START?esc(receiptFormatDate(receiptParseDate(o.START))):'-'}</td>
       <td class="px-3 py-2.5 min-w-[130px]"><b class="text-xs">${esc(o.NAMA)}</b><div class="text-[9px] text-slate-400">${esc(o.NO_WA)}</div>${unpaid?'<span class="pill unpaid inline-block mt-1">BELUM LUNAS</span>':''}</td>
