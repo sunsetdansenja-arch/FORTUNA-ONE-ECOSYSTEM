@@ -332,6 +332,7 @@ function orderDateFilterValue(order){
   if(Number.isNaN(date.getTime()))return '';
   return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
 }
+function applyOrderDateFilter(){const from=$('orderDateFrom')?.value||'';const to=$('orderDateTo')?.value||'';if(from&&to&&from>to){toast('Tanggal mulai tidak boleh melewati tanggal akhir.',false);return}renderOrders()}
 function resetOrderDateFilter(){if($('orderDateFrom'))$('orderDateFrom').value='';if($('orderDateTo'))$('orderDateTo').value='';renderOrders()}
 function renderOrders(){
   const q=($('search')?.value||'').toLowerCase();
