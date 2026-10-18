@@ -359,7 +359,6 @@ function renderOrders(){
       <div class="order-item">
         <div class="order-item-head">
           <div class="order-item-name">${esc(packageDisplayName(i.PAKET))}</div>
-          <span class="pill s-${esc(i.STATUS)}">${esc(i.STATUS)}</span>
           <button onclick="deleteItem('${esc(i.ITEM_ID)}')" title="Hapus item ${esc(i.ITEM_ID)}" class="btn text-red-600 bg-red-50 rounded-md px-1.5 py-0.5 text-[9px]"><i class="fa-solid fa-trash"></i></button>
         </div>
         <div class="order-item-meta"><span>${esc(i.BERAT)} ${getOrderUnit(o,i.PAKET)}</span><span>•</span><span>${rupiah(i.TAGIHAN)}</span></div>
