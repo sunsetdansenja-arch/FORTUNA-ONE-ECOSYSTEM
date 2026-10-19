@@ -29,6 +29,7 @@ th{background:#f1f5f3;text-align:left;font-size:9px;text-transform:uppercase;let
 th,td{border:1px solid #dfe5e1;padding:7px 8px;vertical-align:top}
 tr.paid td{background:#dcfce7 !important}
 td.amount,th.amount{text-align:right;white-space:nowrap}
+td.no,th.no{width:30px;text-align:center;white-space:nowrap}
 .total{margin-top:12px;display:flex;justify-content:flex-end;font-size:12px;font-weight:800}
 .footer{margin-top:18px;color:#94a3b8;font-size:9px}
 @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
@@ -62,13 +63,14 @@ function printOrders(){
   const modeLabel=activeMode==='INSTANSI'?'Instansi':'Reguler';
   const instansiNames=[...new Set(list.map(o=>typeof getOrderType==='function'?getOrderType(o).instansi:'').filter(Boolean))];
   const scopeLabel=activeMode==='INSTANSI'&&instansiNames.length?instansiNames.join(', '):modeLabel;
-  const rows=list.map(o=>{
-    const items=(o.items||[]).map(i=>`${printEscape(typeof packageDisplayName==='function'?packageDisplayName(i.PAKET):i.PAKET)} (${printEscape(i.BERAT)} ${printEscape(typeof getOrderUnit==='function'?getOrderUnit(o,i.PAKET):'kg')}) — ${printEscape(i.STATUS)}`).join('<br>');
+  const rows=list.map((o,idx)=>{
+    const items=(o.items||[]).map(i=>`${printEscape(typeof packageDisplayName==='function'?packageDisplayName(i.PAKET):i.PAKET)} (${printEscape(i.BERAT)} ${printEscape(typeof getOrderUnit==='function'?getOrderUnit(o,i.PAKET):'kg')})`).join('<br>');
     const method=String(o.METODE_TRANSAKSI||'').trim();
     const methodLabel=!method||method.toUpperCase()==='BELUM LUNAS'?'Belum ditentukan':method;
     const paymentStatus=String(o.STATUS_PEMBAYARAN||'').trim()||(method.toUpperCase()==='BELUM LUNAS'?'BELUM LUNAS':'-');
     const isPaid=paymentStatus.toUpperCase()==='LUNAS';
     return `<tr class="${isPaid?'paid':''}">
+      <td class="no">${idx+1}</td>
       <td>#${printEscape(o.ORDER_ID)}</td>
       <td>${printEscape(typeof orderDateFilterValue==='function'&&o.START?receiptFormatDate(receiptParseDate(o.START)):'-')}</td>
       <td><b>${printEscape(o.NAMA)}</b><br>${printEscape(o.NO_WA)}</td>
@@ -77,12 +79,12 @@ function printOrders(){
       <td>${printEscape(paymentStatus)}</td>
       <td class="amount">${printMoney(typeof getOrderTotalAmount==='function'?getOrderTotalAmount(o):o.TOTAL_TAGIHAN)}</td>
     </tr>`;
-  }).join('')||'<tr><td colspan="7" style="text-align:center">Tidak ada order yang cocok.</td></tr>';
+  }).join('')||'<tr><td colspan="8" style="text-align:center">Tidak ada order yang cocok.</td></tr>';
 
   openPrintDocument(
     'Daftar Order — Fortuna Laundry',
     `${list.length} order • Mode: ${scopeLabel} • Filter: ${filterLabel}${dateFrom||dateTo?' • Tanggal: '+(dateFrom||'awal')+' s/d '+(dateTo||'sekarang'):''}${q?' • Pencarian: '+q:''}`,
-    `<table><thead><tr><th>Order</th><th>Tanggal</th><th>Pelanggan</th><th>Paket / Status</th><th>Metode Pembayaran</th><th>Status Pembayaran</th><th class="amount">Total</th></tr></thead><tbody>${rows}</tbody></table>
+    `<table><thead><tr><th class="no">No</th><th>Order</th><th>Tanggal</th><th>Pelanggan</th><th>Paket</th><th>Metode Pembayaran</th><th>Status Pembayaran</th><th class="amount">Total</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="total">Total nominal: ${printMoney(list.reduce((s,o)=>s+(typeof getOrderTotalAmount==='function'?getOrderTotalAmount(o):(Number(String(o.TOTAL_TAGIHAN||'').replace(/[^0-9.-]/g,''))||0)),0))}</div>`
   );
 }
