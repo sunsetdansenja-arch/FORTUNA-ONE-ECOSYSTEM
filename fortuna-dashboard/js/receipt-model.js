@@ -255,7 +255,7 @@ function buildReceiptLines(m) {
   sep();
 
   m.items.forEach(function (it) {
-    left(it.no + '. ' + it.name, true);
+    left(it.name, true);
     lr(it.qty + ' ' + it.unit, receiptRupiah(it.amount));
   });
 
