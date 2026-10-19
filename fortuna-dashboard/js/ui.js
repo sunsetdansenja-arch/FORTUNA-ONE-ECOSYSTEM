@@ -1,6 +1,11 @@
 // Fortuna Laundry — ui module
 
-function showTab(tab){document.querySelectorAll('.tab').forEach(x=>x.classList.add('hidden'));document.querySelectorAll('.navbtn').forEach(x=>x.classList.remove('nav-active'));if(tab==='deadline'){$('tab-deadline').classList.remove('hidden');$('title').textContent='Deadline Dashboard';document.querySelector('[data-tab=deadline]')?.classList.add('nav-active');loadDeadline();}else if(tab==='expense'){$('tab-expense').classList.remove('hidden');$('title').textContent='Expense';document.querySelector('[data-tab=expense]')?.classList.add('nav-active');loadExpense();}else{$('tab-ops').classList.remove('hidden');$('title').textContent='Operasional Dashboard';document.querySelector('[data-tab=ops]')?.classList.add('nav-active');showOpsView(opsView||'new');}if(window.matchMedia('(max-width:899px)').matches)closeMobileDrawer();}
+function showTab(tab){document.querySelectorAll('.tab').forEach(x=>x.classList.add('hidden'));document.querySelectorAll('.navbtn').forEach(x=>x.classList.remove('nav-active'));if(tab==='deadline'){$('tab-deadline').classList.remove('hidden');$('title').textContent='Deadline Dashboard';document.querySelector('[data-tab=deadline]')?.classList.add('nav-active');loadDeadline();}else if(tab==='expense'){$('tab-expense').classList.remove('hidden');$('title').textContent='Expense';document.querySelector('[data-tab=expense]')?.classList.add('nav-active');loadExpense();}else{$('tab-ops').classList.remove('hidden');$('title').textContent='Operasional Dashboard';document.querySelector('[data-tab=ops]')?.classList.add('nav-active');showOpsView(opsView||'new');}const cur=(tab==='deadline'||tab==='expense')?tab:'ops';
+  document.querySelectorAll('.navbtn,.bnav-btn').forEach(x=>x.classList.remove('nav-active'));
+  document.querySelectorAll('[data-tab="'+cur+'"]').forEach(x=>x.classList.add('nav-active'));
+  $('globalDeadlineTray')?.classList.toggle('hidden',cur==='deadline');
+  window.scrollTo({top:0});
+  if(window.matchMedia('(max-width:899px)').matches)closeMobileDrawer();}
 
 function showOpsView(view){opsView=view;document.querySelectorAll('#ops-new,#ops-list').forEach(x=>x.classList.add('hidden'));$('ops-'+view).classList.remove('hidden');$('opsNavNew').classList.toggle('active',view==='new');$('opsNavList').classList.toggle('active',view==='list');if(view==='list'){renderSummary();renderOrders();}}
 
