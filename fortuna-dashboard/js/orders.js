@@ -330,16 +330,16 @@ function updateOrderBackupAlert(){
 
 function orderDateFilterValue(order){
   const raw=String(order?.START??'').trim();
-  if(!raw)return '';
-  const match=raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if(match){
-    const date=new Date(Number(match[1]),Number(match[2])-1,Number(match[3]));
-    if(date.getFullYear()===Number(match[1])&&date.getMonth()===Number(match[2])-1&&date.getDate()===Number(match[3]))return match[1]+'-'+match[2]+'-'+match[3];
-    return '';
-  }
-  const date=new Date(raw);
-  if(Number.isNaN(date.getTime()))return '';
-  return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
+  if(!raw||!/^\d{4}-\d{2}-\d{2}/.test(raw))return '';
+  // Match the table/receipt date by parsing START the same way and extracting WIB date.
+  const parsed=receiptParseDate(raw);
+  if(!(parsed instanceof Date)||Number.isNaN(parsed.getTime()))return '';
+  const parts=new Intl.DateTimeFormat('en-CA',{
+    timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'
+  }).formatToParts(parsed);
+  const part=type=>parts.find(p=>p.type===type)?.value||'';
+  const year=part('year'),month=part('month'),day=part('day');
+  return year&&month&&day?year+'-'+month+'-'+day:'';
 }
 function applyOrderDateFilter(){const from=$('orderDateFrom')?.value||'';const to=$('orderDateTo')?.value||'';if(from&&to&&from>to){toast('Tanggal mulai tidak boleh melewati tanggal akhir.',false);return}renderOrders()}
 function resetOrderDateFilter(){if($('orderDateFrom'))$('orderDateFrom').value='';if($('orderDateTo'))$('orderDateTo').value='';renderOrders()}
