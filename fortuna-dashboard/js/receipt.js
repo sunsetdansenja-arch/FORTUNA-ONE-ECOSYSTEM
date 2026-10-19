@@ -55,7 +55,7 @@ function receiptPaperHTML(m) {
     ${m.instansi ? `<div style="font-weight:800;margin-top:2px">${esc(m.instansi)}</div>` : ''}
     <div style="font-weight:800;margin-top:2px">${esc(m.name)}</div>
     <hr>
-    ${m.items.map(it => `<div class="item"><div class="item-name">${it.no}. ${esc(it.name)}</div><div class="item-meta"><span>${esc(it.qty)} ${esc(it.unit)}</span><span>${esc(receiptRupiah(it.amount))}</span></div></div>`).join('')}
+    ${m.items.map(it => `<div class="item"><div class="item-name">${esc(it.name)}</div><div class="item-meta"><span>${esc(it.qty)} ${esc(it.unit)}</span><span>${esc(receiptRupiah(it.amount))}</span></div></div>`).join('')}
     <hr>
     <div class="row total"><span>TOTAL</span><span>${esc(receiptRupiah(m.total))}</span></div>
     <div style="text-align:center;font-weight:800;margin-top:6px">${esc(m.status)}</div>
