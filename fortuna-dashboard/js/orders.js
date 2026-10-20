@@ -671,6 +671,7 @@ async function saveEdit(e){
     }
     closeModal('editModal');
     await loadDashboard(true);
+    await loadDeadline();
     if(syncFailed)toast('Perubahan item tersimpan, tetapi nama/WA pada sebagian item lain gagal diperbarui. Refresh dan periksa kembali.',false);
     else toast('Item diperbarui • Tagihan '+rupiah(bill));
   }catch(err){
@@ -764,7 +765,7 @@ async function saveAddItem(e){
   btn.disabled=true;
   if(txt)txt.textContent='Menyimpan...';
   try{
-    await api('add_item',{
+    await api('order_add_item',{
       ORDER_ID:String(orderId),PAKET:paket,
       BERAT:String(qty),TAGIHAN:String(Math.round(bill))
     });
