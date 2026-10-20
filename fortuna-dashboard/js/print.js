@@ -1,374 +1,147 @@
-{
-  "nodes": [
-    {
-      "parameters": {
-        "operation": "get",
-        "dataTableId": {
-          "__rl": true,
-          "value": "Tm2TC0rKrU4c1msp",
-          "mode": "list",
-          "cachedResultName": "FORTUNA LOG ORDER",
-          "cachedResultUrl": "/projects/hFqRknMTWXnMyfsU/datatables/Tm2TC0rKrU4c1msp"
-        },
-        "returnAll": true
-      },
-      "id": "c2000001-0000-4000-8000-000000000001",
-      "name": "GET LOG ORDER - FOR ADD ITEM",
-      "type": "n8n-nodes-base.dataTable",
-      "typeVersion": 1.1,
-      "position": [
-        15120,
-        3200
-      ],
-      "alwaysOutputData": true
-    },
-    {
-      "parameters": {
-        "jsCode": "// ================== PENGATURAN ==================\n// START item baru: 'NOW' = waktu saat item ditambahkan (deadline dihitung dari sekarang)\n//                  'ORDER' = ikut START order lama\nconst ITEM_START = 'NOW';\n// Jika order lama sudah LUNAS, item tambahan dicatat: 'BELUM LUNAS' (aman) atau 'COPY' (ikut LUNAS)\nconst ADD_TO_PAID_AS = 'BELUM LUNAS';\n// Durasi paket (jam) - samakan dengan node PREPARE ORDER ITEMS\nconst DURATION_MAP = {\n  'CUCI KOMPLIT REGULER': 72, 'EXPRESS 1 HARI': 24, 'EXPRESS 3 JAM': 3, 'EXPRESS 6 JAM': 6,\n  'CUCI REGULER': 72, 'CUCI EXPRESS 1 HARI': 24, 'CUCI EXPRESS 3 JAM': 3, 'CUCI EXPRESS 6 JAM': 6,\n  'SETRIKA REGULER': 48, 'SETRIKA EXPRESS 1 HARI': 24, 'SETRIKA EXPRESS 3 JAM': 3, 'SETRIKA EXPRESS 6 JAM': 6,\n  'FLEKSIBEL': 120, 'EXPRESS 1': 24\n};\n// =================================================\n\nconst rows = $input.all().map(i => i.json || {});\nconst webhook = $('Webhook Utama').first().json || {};\nconst body = typeof webhook.body === 'string' ? JSON.parse(webhook.body || '{}') : (webhook.body || {});\nconst b = body.data || webhook.data || {};\n\nconst clean = v => String(v ?? '').trim();\nconst pad = n => String(n).padStart(2, '0');\nconst fail = msg => [{ json: { _error: msg } }];\n\nconst cleanMoney = v => {\n  let s = String(v ?? '').trim();\n  if (!s) return '0';\n  const neg = /^[^\\d]*-/.test(s);\n  s = s.replace(/[^\\d.,]/g, '');\n  if (!s) return '0';\n  const hasDot = s.includes('.'), hasComma = s.includes(',');\n  if (hasDot && hasComma) {\n    const dec = s.lastIndexOf('.') > s.lastIndexOf(',') ? '.' : ',';\n    const thou = dec === '.' ? ',' : '.';\n    s = s.split(thou).join('').replace(dec, '.');\n  } else if (hasDot || hasComma) {\n    const sep = hasDot ? '.' : ',';\n    const parts = s.split(sep);\n    const thousands = parts.length > 2 || (parts.length === 2 && parts[1].length === 3);\n    s = thousands ? parts.join('') : parts[0] + '.' + parts[1];\n  }\n  const n = Math.round(Number(s));\n  return Number.isFinite(n) ? String((neg ? -1 : 1) * n) : '0';\n};\nconst cleanQty = v => {\n  const s = String(v ?? '').trim().replace(/,/g, '.').replace(/[^\\d.]/g, '');\n  if (!s) return '0';\n  const [intRaw, ...rest] = s.split('.');\n  const intPart = intRaw.replace(/^0+(?=\\d)/, '') || '0';\n  return rest.length ? intPart + '.' + rest.join('') : intPart;\n};\n\n// ---- validasi payload ----\nconst orderId = clean(b.ORDER_ID);\nconst paket   = clean(b.PAKET).toUpperCase();\nconst berat   = cleanQty(b.BERAT);\nconst tagihan = cleanMoney(b.TAGIHAN);\nif (!orderId) return fail('ORDER_ID wajib diisi.');\nif (!paket) return fail('PAKET wajib diisi.');\nif (!(Number(berat) > 0)) return fail('BERAT / jumlah harus lebih dari 0.');\nif (!(Number(tagihan) > 0)) return fail('TAGIHAN harus lebih dari 0.');\n\n// ---- ambil baris order ----\nconst orderRows = rows.filter(r => clean(r.ORDER_ID) === orderId);\nif (!orderRows.length) return fail('Order #' + orderId + ' tidak ditemukan.');\n\n// ---- ITEM_ID berikutnya: pertahankan prefix (identitas instansi ada di prefix ITEM_ID) ----\nconst parsed = orderRows.map(r => {\n  const m = clean(r.ITEM_ID).match(/^(.*?)(\\d+)$/);\n  return m ? { r, prefix: m[1], num: parseInt(m[2], 10), width: m[2].length } : null;\n});\nif (parsed.some(x => !x)) return fail('Format ITEM_ID order #' + orderId + ' tidak dikenali.');\nif (parsed.some(x => x.prefix === '')) return fail('ITEM_ID order #' + orderId + ' tidak punya prefix.');\nif (new Set(parsed.map(x => x.prefix)).size > 1) return fail('Prefix ITEM_ID order #' + orderId + ' tidak seragam.');\n\nconst last = parsed.reduce((a, c) => (c.num > a.num ? c : a));\nconst itemId = last.prefix + String(last.num + 1).padStart(last.width, '0');\n// jaga-jaga bentrok dengan ITEM_ID mana pun di tabel\nif (rows.some(r => clean(r.ITEM_ID) === itemId)) return fail('ITEM_ID ' + itemId + ' sudah dipakai.');\n\nconst base = parsed.slice().sort((a, c) => a.num - c.num)[0].r;\n\n// ---- waktu (format sama dengan PROCESS ORDER) ----\nconst now = new Date();\nconst stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +\n              `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;\nconst start = ITEM_START === 'ORDER' && clean(base.START) ? clean(base.START) : stamp;\n\nconst duration = Object.prototype.hasOwnProperty.call(DURATION_MAP, paket) ? DURATION_MAP[paket] : 0;\nconst startMs = Date.parse(start.replace(' ', 'T'));\nconst readyAt = duration && Number.isFinite(startMs) ? new Date(startMs + duration * 3600000).toISOString() : '';\n\n// ---- pembayaran ----\nlet metode = clean(base.METODE_TRANSAKSI);\nlet statusBayar = clean(base.STATUS_PEMBAYARAN);\nif (statusBayar.toUpperCase() === 'LUNAS' && ADD_TO_PAID_AS !== 'COPY') {\n  metode = ADD_TO_PAID_AS;\n  statusBayar = ADD_TO_PAID_AS;\n}\n\nreturn [{ json: {\n  ORDER_ID: orderId,\n  NAMA: clean(base.NAMA),\n  NO_WA: clean(base.NO_WA),\n  PAKET: paket,\n  BERAT: berat,\n  TAGIHAN: tagihan,\n  START: start,\n  STATUS: 'DITERIMA',\n  READY_AT: readyAt,\n  PICKED_UP_AT: '',\n  METODE_TRANSAKSI: metode,\n  STATUS_PEMBAYARAN: statusBayar,\n  READY_ACTUAL_AT: '',\n  DURATION: String(duration),\n  ITEM_ID: itemId\n} }];"
-      },
-      "id": "c2000001-0000-4000-8000-000000000002",
-      "name": "ADD ITEM - BUILD",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        15344,
-        3200
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "d2000001-0000-4000-8000-000000000001",
-              "leftValue": "={{ $json._error }}",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "empty",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "c2000001-0000-4000-8000-000000000003",
-      "name": "ADD ITEM - VALID?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        15568,
-        3200
-      ]
-    },
-    {
-      "parameters": {
-        "dataTableId": {
-          "__rl": true,
-          "value": "Tm2TC0rKrU4c1msp",
-          "mode": "list",
-          "cachedResultName": "FORTUNA LOG ORDER",
-          "cachedResultUrl": "/projects/hFqRknMTWXnMyfsU/datatables/Tm2TC0rKrU4c1msp"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "ORDER_ID": "={{ $json.ORDER_ID }}",
-            "NAMA": "={{ $json.NAMA }}",
-            "NO_WA": "={{ $json.NO_WA }}",
-            "PAKET": "={{ $json.PAKET }}",
-            "BERAT": "={{ $json.BERAT }}",
-            "TAGIHAN": "={{ $json.TAGIHAN }}",
-            "START": "={{ $json.START }}",
-            "STATUS": "={{ $json.STATUS }}",
-            "READY_AT": "={{ $json.READY_AT }}",
-            "PICKED_UP_AT": "={{ $json.PICKED_UP_AT }}",
-            "METODE_TRANSAKSI": "={{ $json.METODE_TRANSAKSI }}",
-            "STATUS_PEMBAYARAN": "={{ $json.STATUS_PEMBAYARAN }}",
-            "READY_ACTUAL_AT": "={{ $json.READY_ACTUAL_AT }}",
-            "DURATION": "={{ $json.DURATION }}",
-            "ITEM_ID": "={{ $json.ITEM_ID }}"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "ORDER_ID",
-              "displayName": "ORDER_ID",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "NAMA",
-              "displayName": "NAMA",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "NO_WA",
-              "displayName": "NO_WA",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "PAKET",
-              "displayName": "PAKET",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "BERAT",
-              "displayName": "BERAT",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "TAGIHAN",
-              "displayName": "TAGIHAN",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "START",
-              "displayName": "START",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "STATUS",
-              "displayName": "STATUS",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "READY_AT",
-              "displayName": "READY_AT",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "PICKED_UP_AT",
-              "displayName": "PICKED_UP_AT",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "METODE_TRANSAKSI",
-              "displayName": "METODE_TRANSAKSI",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "STATUS_PEMBAYARAN",
-              "displayName": "STATUS_PEMBAYARAN",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "READY_ACTUAL_AT",
-              "displayName": "READY_ACTUAL_AT",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "DURATION",
-              "displayName": "DURATION",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "ITEM_ID",
-              "displayName": "ITEM_ID",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
-      },
-      "id": "c2000001-0000-4000-8000-000000000004",
-      "name": "SAVE ADD ITEM",
-      "type": "n8n-nodes-base.dataTable",
-      "typeVersion": 1.1,
-      "position": [
-        15792,
-        3100
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const b = $('ADD ITEM - BUILD').first().json;\nif (b._error) return [{ json: { status: 'error', message: b._error } }];\nreturn [{ json: { status: 'success', message: 'Paket berhasil ditambahkan', data: {\n  ORDER_ID: b.ORDER_ID, ITEM_ID: b.ITEM_ID, PAKET: b.PAKET, BERAT: b.BERAT, TAGIHAN: b.TAGIHAN,\n  START: b.START, DURATION: b.DURATION, READY_AT: b.READY_AT, STATUS: b.STATUS\n} } }];"
-      },
-      "id": "c2000001-0000-4000-8000-000000000005",
-      "name": "ADD ITEM RESPONSE",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        16016,
-        3200
-      ]
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ $json }}",
-        "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Content-Type",
-                "value": "application/json; charset=utf-8"
-              },
-              {
-                "name": "Access-Control-Allow-Origin",
-                "value": "*"
-              }
-            ]
-          }
-        }
-      },
-      "id": "c2000001-0000-4000-8000-000000000006",
-      "name": "RESPOND ADD ITEM",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [
-        16240,
-        3200
-      ]
-    }
-  ],
-  "connections": {
-    "GET LOG ORDER - FOR ADD ITEM": {
-      "main": [
-        [
-          {
-            "node": "ADD ITEM - BUILD",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "ADD ITEM - BUILD": {
-      "main": [
-        [
-          {
-            "node": "ADD ITEM - VALID?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "ADD ITEM - VALID?": {
-      "main": [
-        [
-          {
-            "node": "SAVE ADD ITEM",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "ADD ITEM RESPONSE",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "SAVE ADD ITEM": {
-      "main": [
-        [
-          {
-            "node": "ADD ITEM RESPONSE",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "ADD ITEM RESPONSE": {
-      "main": [
-        [
-          {
-            "node": "RESPOND ADD ITEM",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
-  },
-  "pinData": {}
+// Fortuna Laundry — dashboard print / PDF module
+// Uses the browser print dialog so users can print physically or choose "Save as PDF".
+
+function printMoney(v){
+  const n=Number(String(v ?? '').replace(/[^0-9.-]/g,''))||0;
+  return rupiah(n);
+}
+
+function printEscape(v){
+  const s=String(v ?? '');
+  return typeof esc==='function' ? esc(s) : s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function openPrintDocument(title, subtitle, bodyHtml, note){
+  const w=window.open('','_blank','width=1100,height=800');
+  if(!w){ toast('Popup diblokir browser. Izinkan popup untuk Fortuna.',false); return; }
+
+  w.document.open();
+  w.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8">
+<title>${printEscape(title)}</title>
+<style>
+:root{--fs:11px;--fs-lg:12px}
+@page{size:A4;margin:8mm 10mm}
+*{box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;color:#17201c;margin:0;font-size:var(--fs);line-height:1.15}
+h1{font-size:var(--fs-lg);margin:0 0 2px;font-weight:800}
+.meta{color:#64748b;font-size:var(--fs);margin-bottom:6px}
+table{width:100%;border-collapse:collapse}
+thead{display:table-header-group}
+tr{page-break-inside:avoid}
+th{background:#f1f5f3;text-align:left;font-size:var(--fs);text-transform:uppercase;letter-spacing:0;color:#475569}
+th,td{border:1px solid #dfe5e1;padding:1.5px 4px;vertical-align:top;font-size:var(--fs)}
+tr.paid td{background:#dcfce7 !important}
+td.amount,th.amount{text-align:right;white-space:nowrap}
+td.no,th.no{width:24px;text-align:center;white-space:nowrap}
+td.tgl{white-space:nowrap}
+.total{margin-top:6px;display:flex;justify-content:flex-end;font-size:var(--fs-lg);font-weight:800}
+.note{margin-top:8px;border:1px solid #dfe5e1;border-radius:3px;padding:4px 6px;page-break-inside:avoid}
+.note b{display:block;font-size:var(--fs);margin-bottom:2px}
+.note div{white-space:pre-wrap;font-size:var(--fs)}
+.footer{margin-top:8px;color:#94a3b8;font-size:var(--fs)}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body>
+<h1>${printEscape(title)}</h1><div class="meta">${printEscape(subtitle)}</div>
+${bodyHtml}
+${note?`<div class="note"><b>Keterangan</b><div>${printEscape(note)}</div></div>`:''}
+<div class="footer">Dicetak dari Fortuna Laundry Dashboard • ${new Date().toLocaleString('id-ID')}</div>
+</body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(()=>{w.print();},250);
+}
+
+function collectPrintOrders(){
+  const q=String($('search')?.value||'').trim().toLowerCase();
+  const dateFrom=$('orderDateFrom')?.value||'';
+  const dateTo=$('orderDateTo')?.value||'';
+  const activeMode=typeof orderMode!=='undefined'&&orderMode==='INSTANSI'?'INSTANSI':'REGULER';
+  const list=(orders||[]).filter(o=>{
+    const items=o.items||[];
+    const identity=typeof getOrderType==='function'?getOrderType(o):{type:'REGULER',instansi:''};
+    const orderDate=typeof orderDateFilterValue==='function'?orderDateFilterValue(o):'';
+    const matchesMode=identity.type===activeMode;
+    const matchesStatus=statusFilter==='ALL'||items.some(i=>String(i.STATUS||'').toUpperCase()===statusFilter);
+    const matchesSearch=(String(o.ORDER_ID||'')+' '+identity.type+' '+identity.instansi+' '+String(o.NAMA||'')+' '+String(o.PAKET||'')+' '+items.map(i=>i.PAKET).join(' ')).toLowerCase().includes(q);
+    const matchesDate=(!dateFrom||(orderDate&&orderDate>=dateFrom))&&(!dateTo||(orderDate&&orderDate<=dateTo));
+    return matchesMode&&matchesStatus&&matchesSearch&&matchesDate;
+  });
+
+  const filterLabel=statusFilter==='ALL'?'Semua status':statusFilter;
+  const modeLabel=activeMode==='INSTANSI'?'Instansi':'Reguler';
+  const instansiNames=[...new Set(list.map(o=>typeof getOrderType==='function'?getOrderType(o).instansi:'').filter(Boolean))];
+  const scopeLabel=activeMode==='INSTANSI'&&instansiNames.length?instansiNames.join(', '):modeLabel;
+  return {list,q,dateFrom,dateTo,filterLabel,scopeLabel};
+}
+
+// Langkah 1: tombol "Cetak / PDF" -> pop up isi keterangan
+function printOrders(){
+  const c=collectPrintOrders();
+  const sum=$('printNoteSummary');
+  if(sum)sum.textContent=c.list.length+' order • Mode: '+c.scopeLabel+' • Filter: '+c.filterLabel+(c.dateFrom||c.dateTo?' • Tanggal: '+(c.dateFrom||'awal')+' s/d '+(c.dateTo||'sekarang'):'')+(c.q?' • Pencarian: '+c.q:'');
+  const ta=$('printNoteText');
+  if(ta)ta.value='';
+  $('printNoteModal').classList.add('show');
+  setTimeout(()=>ta&&ta.focus(),60);
+}
+
+// Langkah 2: tombol "Lanjut Cetak" di pop up -> preview/cetak dengan keterangan di bagian bawah
+function confirmPrintOrders(){
+  const note=String($('printNoteText')?.value||'').trim();
+  closeModal('printNoteModal');
+  renderOrdersPrint(note);
+}
+
+function renderOrdersPrint(note){
+  const {list,q,dateFrom,dateTo,filterLabel,scopeLabel}=collectPrintOrders();
+  const rows=list.map((o,idx)=>{
+    const items=(o.items||[]).map(i=>`${printEscape(typeof packageDisplayName==='function'?packageDisplayName(i.PAKET):i.PAKET)} (${printEscape(i.BERAT)} ${printEscape(typeof getOrderUnit==='function'?getOrderUnit(o,i.PAKET):'kg')})`).join('<br>');
+    const method=String(o.METODE_TRANSAKSI||'').trim();
+    const methodLabel=!method||method.toUpperCase()==='BELUM LUNAS'?'Belum ditentukan':method;
+    const paymentStatus=String(o.STATUS_PEMBAYARAN||'').trim()||(method.toUpperCase()==='BELUM LUNAS'?'BELUM LUNAS':'-');
+    const isPaid=paymentStatus.toUpperCase()==='LUNAS';
+    return `<tr class="${isPaid?'paid':''}">
+      <td class="no">${idx+1}</td>
+      <td>#${printEscape(o.ORDER_ID)}</td>
+      <td class="tgl">${printEscape(typeof orderDateFilterValue==='function'&&o.START?receiptFormatDate(receiptParseDate(o.START)):'-')}</td>
+      <td><b>${printEscape(o.NAMA)}</b><br>${printEscape(o.NO_WA)}</td>
+      <td>${items||'-'}</td>
+      <td>${printEscape(methodLabel)}</td>
+      <td>${printEscape(paymentStatus)}</td>
+      <td class="amount">${printMoney(typeof getOrderTotalAmount==='function'?getOrderTotalAmount(o):o.TOTAL_TAGIHAN)}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="8" style="text-align:center">Tidak ada order yang cocok.</td></tr>';
+
+  openPrintDocument(
+    'Daftar Order — Fortuna Laundry',
+    `${list.length} order • Mode: ${scopeLabel} • Filter: ${filterLabel}${dateFrom||dateTo?' • Tanggal: '+(dateFrom||'awal')+' s/d '+(dateTo||'sekarang'):''}${q?' • Pencarian: '+q:''}`,
+    `<table><thead><tr><th class="no">No</th><th>Order</th><th>Tanggal</th><th>Pelanggan</th><th>Paket</th><th>Metode Pembayaran</th><th>Status Pembayaran</th><th class="amount">Total</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="total">Total nominal: ${printMoney(list.reduce((s,o)=>s+(typeof getOrderTotalAmount==='function'?getOrderTotalAmount(o):(Number(String(o.TOTAL_TAGIHAN||'').replace(/[^0-9.-]/g,''))||0)),0))}</div>`,
+    note
+  );
+}
+function printExpenses(){
+  const q=String($('expenseSearch')?.value||'').trim().toLowerCase();
+  const method=$('expenseMethodFilter')?.value||'ALL';
+  const list=(expenses||[]).filter(x=>{
+    const hay=String(x.KETERANGAN||'')+' '+String(x.EXPENSE_ID||'');
+    return (!q||hay.toLowerCase().includes(q))&&(method==='ALL'||String(x.METODE_TRANSAKSI||'')===method);
+  });
+
+  const rows=list.map(x=>`<tr>
+    <td>${printEscape(expenseDateLabel(x.TANGGAL))}</td>
+    <td>${printEscape(x.EXPENSE_ID||'-')}</td>
+    <td>${printEscape(x.KETERANGAN||'-')}</td>
+    <td>${printEscape(String(x.KATEGORI||'LAINNYA').toUpperCase())}</td>
+    <td>${printEscape(x.METODE_TRANSAKSI||'-')}</td>
+    <td class="amount">${printMoney(x.NOMINAL)}</td>
+  </tr>`).join('')||'<tr><td colspan="6" style="text-align:center">Tidak ada expense yang cocok.</td></tr>';
+
+  const total=list.reduce((s,x)=>s+(Number(String(x.NOMINAL||'').replace(/[^0-9.-]/g,''))||0),0);
+  openPrintDocument(
+    'Laporan Finance — Fortuna Laundry',
+    `${list.length} transaksi • Metode: ${method==='ALL'?'Semua':method}${q?' • Pencarian: '+q:''}`,
+    `<table><thead><tr><th>Tanggal</th><th>ID</th><th>Keterangan</th><th>Kategori</th><th>Metode</th><th class="amount">Nominal</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="total">Total nominal: ${printMoney(total)}</div>`
+  );
 }
