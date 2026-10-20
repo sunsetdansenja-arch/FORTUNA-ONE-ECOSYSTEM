@@ -17,7 +17,7 @@ function closeMobileDrawer(){$('mobileDrawer')?.classList.remove('show');$('draw
 
 function toggleMobileDrawer(){if($('mobileDrawer')?.classList.contains('show'))closeMobileDrawer();else{$('mobileDrawer')?.classList.add('show');$('drawerBackdrop')?.classList.add('show');}}
 
-function refreshActiveTab(){const btn=$('globalRefreshBtn'),icon=$('globalRefreshIcon');if(btn)btn.disabled=true;if(icon)icon.className='fa-solid fa-spinner fa-spin mr-1';const active=document.querySelector('.tab:not(.hidden)')?.id;const done=active==='tab-deadline'?loadDeadline():active==='tab-expense'?loadExpense():loadDashboard();Promise.resolve(done).finally(()=>{if(btn)btn.disabled=false;if(icon)icon.className='fa-solid fa-rotate-right mr-1'});}
+function refreshActiveTab(){const btn=$('globalRefreshBtn'),icon=$('globalRefreshIcon');if(btn)btn.disabled=true;if(icon)icon.className='fa-solid fa-spinner fa-spin mr-1';const active=document.querySelector('.tab:not(.hidden)')?.id;const done=active==='tab-deadline'?loadDeadline(true):active==='tab-expense'?loadExpense():loadDashboard();Promise.resolve(done).finally(()=>{if(btn)btn.disabled=false;if(icon)icon.className='fa-solid fa-rotate-right mr-1'});}
 
 function closeModal(id){$(id).classList.remove('show');if(id==='previewModal'||id==='numpadModal'||id==='payModal')document.body.classList.remove('overflow-hidden')}
 
