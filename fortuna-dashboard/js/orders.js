@@ -315,7 +315,7 @@ function updateOrderBackupAlert(){
   const tray=$('globalDeadlineTray');
   if(!tray)return;
   const existing=$('orderBackupAlert');
-  const shouldShow=(orders||[]).length>=700;
+  const shouldShow=(orders||[]).length>=3000;
   if(!shouldShow){
     existing?.remove();
     return;
@@ -324,7 +324,7 @@ function updateOrderBackupAlert(){
   const alert=document.createElement('div');
   alert.id='orderBackupAlert';
   alert.className='mb-4 rounded-2xl border-2 border-red-600 bg-red-50 px-5 py-5 text-red-900 shadow-sm';
-  alert.innerHTML='<div class="flex items-start gap-4"><div class="w-12 h-12 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div><div><div class="text-base sm:text-lg font-black uppercase tracking-wide">DEAR FORTUNA</div><div class="text-sm sm:text-base font-extrabold leading-relaxed mt-1">Data order sudah mencapai 700 selama menggunakan sistem ini, segera hubungi developer untuk backup data demi kenyamanan dan kecepatan operasional.</div></div></div>';
+  alert.innerHTML='<div class="flex items-start gap-4"><div class="w-12 h-12 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div><div><div class="text-base sm:text-lg font-black uppercase tracking-wide">DEAR FORTUNA</div><div class="text-sm sm:text-base font-extrabold leading-relaxed mt-1">Data order sudah mencapai 3000 selama menggunakan sistem ini, segera hubungi developer untuk backup data demi kenyamanan dan kecepatan operasional.</div></div></div>';
   tray.parentNode.insertBefore(alert,tray);
 }
 
