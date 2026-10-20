@@ -148,6 +148,25 @@
    </form>
   </div>
  </div>
+<div id="addItemModal" class="modal fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+  <div class="modal-box bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-auto p-5">
+   <div class="flex justify-between items-start gap-3">
+    <div><h3 class="font-extrabold text-lg">Tambah Item ke Order</h3><p id="add-info" class="text-xs text-slate-500 mt-1 break-all"></p></div>
+    <button type="button" onclick="closeModal('addItemModal')" class="w-9 h-9 rounded-xl bg-slate-100" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+   </div>
+   <form onsubmit="saveAddItem(event)" class="space-y-3 mt-5">
+    <input type="hidden" id="add-order">
+    <label class="block"><span id="add-paket-label" class="label">PAKET</span><select id="add-paket" class="input"></select></label>
+    <label id="add-custom-wrap" class="block" style="display:none"><span class="label">NAMA PAKET CUSTOM</span><input id="add-custom-name" class="input" placeholder="Isi nama paket sendiri" autocomplete="off"></label>
+    <div class="grid grid-cols-2 gap-2">
+     <label class="block"><span id="add-berat-label" class="label">BERAT (KG)</span><input id="add-berat" inputmode="decimal" class="input num-input" autocomplete="off"></label>
+     <label class="block"><span class="label">TAGIHAN</span><input id="add-tagihan" inputmode="numeric" data-int="1" class="input num-input" autocomplete="off"></label>
+    </div>
+    <p class="text-[11px] text-slate-500">Deadline item baru dihitung dari sekarang. Jika order sudah LUNAS, item baru dicatat BELUM LUNAS.</p>
+    <button id="addItemSaveBtn" type="submit" class="btn w-full bg-[#0F5A47] text-white rounded-xl py-3 font-extrabold"><i class="fa-solid fa-plus mr-2"></i><span id="addItemSaveText">Tambahkan Item</span></button>
+   </form>
+  </div>
+ </div>
 <div id="payModal" class="modal fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div class="modal-box bg-white rounded-2xl max-w-sm w-full p-5"><h3 class="font-extrabold text-lg">Pelunasan</h3><p class="text-sm text-slate-500 mt-1">Lunas menggunakan metode apa?</p><div class="grid gap-2 mt-5"><button onclick="pay('CASH')" class="btn border rounded-xl py-3 font-extrabold">CASH</button><button onclick="pay('QRIS')" class="btn border rounded-xl py-3 font-extrabold">QRIS</button><button onclick="pay('TRANSFER')" class="btn border rounded-xl py-3 font-extrabold">TRANSFER</button><button onclick="closeModal('payModal')" class="py-2 text-sm font-bold text-slate-500">Batal</button></div></div></div>
 <div id="numpadModal" class="modal fixed inset-0 z-[60] bg-black/40 flex items-end justify-center p-3"><div class="modal-box bg-white rounded-2xl w-full max-w-sm p-4"><div class="flex justify-between mb-3"><b>Input angka</b><button onclick="closeModal('numpadModal')">Selesai</button></div><div id="numDisplay" class="text-right text-2xl font-black p-3 bg-slate-50 rounded-xl mb-3">0</div><div class="numpad" id="numpad"></div></div></div>
 <div id="printNoteModal" class="modal fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div class="modal-box bg-white rounded-2xl max-w-lg w-full p-5"><div class="flex items-start justify-between gap-3"><div><h3 class="font-extrabold text-lg">Cetak Daftar Order</h3><p id="printNoteSummary" class="text-xs text-slate-500 mt-1"></p></div><button type="button" onclick="closeModal('printNoteModal')" class="btn bg-slate-100 w-9 h-9 rounded-xl shrink-0" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button></div><label class="block mt-4"><span class="label">KETERANGAN (opsional, tampil di bagian paling bawah)</span><textarea id="printNoteText" rows="6" class="input" placeholder="Tulis detail apa saja, mis. periode, penanggung jawab, catatan serah terima..."></textarea></label><div class="grid grid-cols-2 gap-2 mt-4"><button type="button" onclick="closeModal('printNoteModal')" class="btn bg-slate-100 rounded-xl py-3 font-extrabold">Batal</button><button type="button" onclick="confirmPrintOrders()" class="btn bg-[#0F5A47] text-white rounded-xl py-3 font-extrabold"><i class="fa-solid fa-print mr-2"></i>Lanjut Cetak</button></div></div></div>
