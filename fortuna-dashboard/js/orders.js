@@ -229,8 +229,6 @@ function draftOrder(e){
       const paket=packageNameFromRow(row);
       if(row.querySelector('.package').value===PACKAGE_CUSTOM_OPTION)continue;
       const qty=Math.round(parseOrderQuantity(row.querySelector('.weight').value));
-      const size=institutionPackageSize(inst,paket);
-      const minimum=institutionMinimumQuantity(inst,paket);
       if(institutionFixedPackage(inst,paket)&&!(qty>0)){
         toast(paket+' harus berjumlah lebih dari 0 PCS.',false);
         return;
@@ -643,7 +641,6 @@ async function saveEdit(e){
   if(!(qty>0))return toast((unit==='kg'?'Berat (KG)':'Jumlah ('+unit.toUpperCase()+')')+' harus lebih dari 0.',false);
   const identityForPackage=getOrderType(o);
   const instansiForPackage=identityForPackage.instansi||String(o.NAMA_INSTANSI||$('edit-paket').dataset.instansi||'').toUpperCase();
-  const packageSize=institutionPackageSize(instansiForPackage,paket);
   if(inst&&institutionFixedPackage(instansiForPackage,paket)&&!(qty>0))return toast(paket+' harus berjumlah lebih dari 0 PCS.',false);
   const bill=orderMoneyValue($('edit-tagihan').value);
   if(!(bill>0))return toast('Tagihan harus lebih dari 0.',false);
