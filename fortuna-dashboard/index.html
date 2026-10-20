@@ -24,7 +24,7 @@
 
 <main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-4">
 <div id="globalDeadlineTray" class="deadline-tray card mb-3 px-3 py-2 flex items-center justify-between gap-3">
-  <div class="flex items-center gap-2.5 min-w-0"><span class="tray-icon w-8 h-8 rounded-xl flex items-center justify-center shrink-0"><i class="fa-solid fa-clock"></i></span><div class="font-extrabold text-sm truncate"><span class="text-[10px] font-black tracking-[.08em] text-slate-500 uppercase mr-1.5">Deadline</span><span id="globalDeadlineCount">0</span> item dipantau</div></div>
+  <div class="flex items-center gap-2.5 min-w-0"><span class="tray-icon w-8 h-8 rounded-xl flex items-center justify-center shrink-0"><i class="fa-solid fa-clock"></i></span><div class="font-extrabold text-sm truncate"><span class="text-[10px] font-black tracking-[.08em] text-slate-500 uppercase mr-1.5">Deadline</span><span id="globalDeadlineCount">0</span> item dipantau<span id="globalDeadlineSplit" class="text-[11px] font-bold text-slate-400 ml-1.5"></span></div></div>
   <button onclick="showTab('deadline')" class="btn shrink-0 bg-slate-100 rounded-xl px-3 py-1.5 text-xs font-extrabold">Lihat</button>
 </div>
 <section id="tab-ops" class="tab space-y-4">
@@ -69,6 +69,10 @@
 
 <section id="tab-deadline" class="tab hidden space-y-3">
   <p class="tab-hint">Pantau deadline per item dan prioritaskan cucian yang paling dekat target READY.</p>
+  <div class="ops-subnav seg" role="group" aria-label="Jenis deadline">
+    <button id="dlModeRegular" type="button" onclick="selectDeadlineMode('REGULER')" class="active"><i class="fa-solid fa-user"></i><span>Reguler</span><b id="dlModeCountReguler" class="ml-1.5 px-1.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-600">0</b></button>
+    <button id="dlModeInstitution" type="button" onclick="selectDeadlineMode('INSTANSI')"><i class="fa-solid fa-building"></i><span>Instansi</span><b id="dlModeCountInstansi" class="ml-1.5 px-1.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-600">0</b></button>
+  </div>
 
   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
     <button onclick="toggleDeadlineFilter('ALL',true)" data-dl-filter="ALL" class="deadline-filter summary-filter card p-3 sm:p-4 text-left active">
