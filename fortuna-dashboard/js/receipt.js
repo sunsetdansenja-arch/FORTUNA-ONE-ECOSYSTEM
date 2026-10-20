@@ -57,6 +57,7 @@ function receiptPaperHTML(m) {
     <hr>
     ${m.items.map(it => `<div class="item"><div class="item-name">${esc(it.name)}</div><div class="item-meta"><span>${esc(it.qty)} ${esc(it.unit)}</span><span>${esc(receiptRupiah(it.amount))}</span></div></div>`).join('')}
     <hr>
+    ${m.extraNote && m.extraNote.length ? `<div style="font-weight:800">KETERANGAN:</div><div style="white-space:pre-wrap">${esc(m.extraNote.join('\n'))}</div><hr>` : ''}
     <div class="row total"><span>TOTAL</span><span>${esc(receiptRupiah(m.total))}</span></div>
     <div style="text-align:center;font-weight:800;margin-top:6px">${esc(m.status)}</div>
     ${m.method ? `<div style="text-align:center;font-size:10px">Metode: ${esc(m.method)}</div>` : ''}
@@ -109,11 +110,41 @@ function openPrintPreview(o) {
   document.body.classList.add('overflow-hidden');
 }
 
+/* ------------------- Pop up keterangan sebelum cetak ------------------- */
+// askReceiptNote() -> Promise<string | null>   (null = dibatalkan, '' = tanpa keterangan)
+let receiptNoteResolve = null;
+
+function askReceiptNote() {
+  return new Promise(function (resolve) {
+    const modal = $('receiptNoteModal');
+    // pop up yang tertinggal (tertutup tanpa jawaban) dianggap batal
+    if (receiptNoteResolve && modal && !modal.classList.contains('show')) finishReceiptNote(null);
+    if (receiptNoteResolve) { resolve(null); return; }   // sudah terbuka
+    receiptNoteResolve = resolve;
+    const ta = $('receiptNoteText');
+    if (ta) ta.value = '';
+    modal.classList.add('show');
+    setTimeout(function () { if (ta) ta.focus(); }, 60);
+  });
+}
+
+function finishReceiptNote(value) {
+  const res = receiptNoteResolve;
+  receiptNoteResolve = null;
+  closeModal('receiptNoteModal');
+  if (res) res(value);
+}
+function submitReceiptNote() { finishReceiptNote(String(($('receiptNoteText') || {}).value || '').trim()); }
+function cancelReceiptNote() { finishReceiptNote(null); }
+
 async function confirmReprint() {
+  if (!previewOrder || busy) return;
+  const note = await askReceiptNote();
+  if (note === null) return;                 // batal: kembali ke preview
   if (!previewOrder || busy) return;
   try {
     busy = true;
-    const r = await printReceipt(previewOrder);
+    const r = await printReceipt({ ...previewOrder, RECEIPT_NOTE: note });
     closeModal('previewModal');
     const noLogo = !!(r && r.logoSkipped);
     toast('Struk #' + previewOrder.ORDER_ID + ' dikirim ke printer' + (noLogo ? ' (tanpa logo, logo gagal dimuat)' : ''), !noLogo);
@@ -128,6 +159,14 @@ async function confirmReprint() {
 
 async function confirmCreate(print, sendWa) {
   if (busy || !draft) return;
+  // Hanya jika akan mencetak: tanya keterangan dulu. Batal = order belum disimpan.
+  let receiptNote = '';
+  if (print) {
+    const note = await askReceiptNote();
+    if (note === null) return;
+    receiptNote = note;
+    if (busy || !draft) return;
+  }
   busy = true;
   try {
     const res = await api('order_create', draft);
@@ -149,7 +188,7 @@ async function confirmCreate(print, sendWa) {
     let printNote = '';
     if (print) {
       try {
-        const r = await printReceipt(full);
+        const r = await printReceipt({ ...full, RECEIPT_NOTE: receiptNote });
         if (r && r.logoSkipped) printNote = ' (struk tercetak tanpa logo)';
       } catch (err) {
         printFailed = true;
