@@ -60,6 +60,15 @@ function receiptAscii(value) {
     .trim();
 }
 
+// Keterangan tambahan (opsional) yang diisi sebelum cetak. Baris baru dari input dipertahankan,
+// tiap baris dijadikan ASCII aman printer; baris kosong di awal/akhir dibuang.
+function receiptNoteLines(value) {
+  const lines = String(value == null ? '' : value).split(/\r?\n/).map(function (s) { return receiptAscii(s); });
+  while (lines.length && !lines[0]) lines.shift();
+  while (lines.length && !lines[lines.length - 1]) lines.pop();
+  return lines;
+}
+
 // Parser nominal rupiah TUNGGAL. Hasil selalu bilangan bulat.
 //   25000 | "25000" | "25.000" | "Rp 25.000" | "25.000,00" | "12500.5" -> bulat
 function receiptParseMoney(value) {
@@ -214,6 +223,7 @@ function buildReceiptModel(o) {
     instansi: receiptAscii(receiptInstansiLabel(o)).toUpperCase(),
     name: receiptAscii(o.NAMA || '-').toUpperCase() || '-',
     items: items,
+    extraNote: receiptNoteLines(o.RECEIPT_NOTE),
     total: total,
     status: status,
     method: method,
@@ -260,6 +270,12 @@ function buildReceiptLines(m) {
   });
 
   sep();
+  // Keterangan tambahan: tepat di atas TOTAL
+  if (m.extraNote && m.extraNote.length) {
+    left('KETERANGAN:', true);
+    m.extraNote.forEach(function (t) { left(t); });
+    sep();
+  }
   lr('TOTAL', receiptRupiah(m.total), true);
   blank();
   center(m.status, true);
