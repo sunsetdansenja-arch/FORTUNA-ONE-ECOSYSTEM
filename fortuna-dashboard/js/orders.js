@@ -30,7 +30,7 @@ function institutionFixedPackage(instansi,paket){
   return instansi==='SECATA'&&name==='PDL SET';
 }
 function institutionMinimumQuantity(instansi,paket){
-  return instansi==='SECABA'&&String(paket||'').trim().toUpperCase()==='EXPRESS 1'?3:1;
+  return 1;
 }
 function institutionPackagePrice(instansi,paket){
   if(instansi==='SECATA'&&String(paket||'').trim().toUpperCase()==='EXPRESS 1')return 20000;
@@ -51,7 +51,7 @@ function institutionItemAmount(instansi,paket,quantity){
   const qty=Math.max(0,Math.round(Number(quantity)||0));
   const size=institutionPackageSize(instansi,paket);
   if(instansi==='SECABA'&&String(paket||'').trim().toUpperCase()==='EXPRESS 1')return Math.round(qty*price/size);
-  if(institutionFixedPackage(instansi,paket))return qty>0&&qty%size===0?(qty/size)*price:0;
+  if(institutionFixedPackage(instansi,paket))return qty>0?price:0;
   return qty*price;
 }
 function institutionItems(){
@@ -96,7 +96,7 @@ function packageOptionLabel(name){
 function institutionPackageLabel(instansi,paket,price){
   const amount=rupiah(price);
   if(instansi==='SECABA'&&String(paket||'').trim().toUpperCase()==='EXPRESS 1'){
-    return paket+' — '+rupiah(Math.round(Number(price)/institutionPackageSize(instansi,paket)))+' / PCS (min. 3 PCS)';
+    return paket+' — '+rupiah(Math.round(Number(price)/institutionPackageSize(instansi,paket)))+' / PCS';
   }
   if(institutionFixedPackage(instansi,paket)){
     const size=institutionPackageSize(instansi,paket);
@@ -231,13 +231,8 @@ function draftOrder(e){
       const qty=Math.round(parseOrderQuantity(row.querySelector('.weight').value));
       const size=institutionPackageSize(inst,paket);
       const minimum=institutionMinimumQuantity(inst,paket);
-      if(inst==='SECABA'&&paket.trim().toUpperCase()==='EXPRESS 1'&&qty<minimum){
-        toast(paket+' minimal '+minimum+' PCS.',false);
-        row.querySelector('.weight')?.focus();
-        return;
-      }
-      if(institutionFixedPackage(inst,paket)&&(!(qty>0)||qty%size!==0)){
-        toast(paket+' harus berjumlah kelipatan '+size+' PCS.',false);
+      if(institutionFixedPackage(inst,paket)&&!(qty>0)){
+        toast(paket+' harus berjumlah lebih dari 0 PCS.',false);
         return;
       }
     }
@@ -649,9 +644,7 @@ async function saveEdit(e){
   const identityForPackage=getOrderType(o);
   const instansiForPackage=identityForPackage.instansi||String(o.NAMA_INSTANSI||$('edit-paket').dataset.instansi||'').toUpperCase();
   const packageSize=institutionPackageSize(instansiForPackage,paket);
-  const minimumQuantity=institutionMinimumQuantity(instansiForPackage,paket);
-  if(inst&&instansiForPackage==='SECABA'&&paket.trim().toUpperCase()==='EXPRESS 1'&&qty<minimumQuantity)return toast(paket+' minimal '+minimumQuantity+' PCS.',false);
-  if(inst&&institutionFixedPackage(instansiForPackage,paket)&&qty%packageSize!==0)return toast(paket+' harus berjumlah kelipatan '+packageSize+' PCS per paket.',false);
+  if(inst&&institutionFixedPackage(instansiForPackage,paket)&&!(qty>0))return toast(paket+' harus berjumlah lebih dari 0 PCS.',false);
   const bill=orderMoneyValue($('edit-tagihan').value);
   if(!(bill>0))return toast('Tagihan harus lebih dari 0.',false);
 
