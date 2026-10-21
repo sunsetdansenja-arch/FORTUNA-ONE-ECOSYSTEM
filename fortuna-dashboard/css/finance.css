@@ -1,0 +1,100 @@
+/* Fortuna Laundry — tab Finance */
+.fin-presets{display:flex;gap:6px;flex-wrap:wrap}
+.fin-chip{padding:7px 13px;border-radius:999px;font-size:12px;font-weight:800;color:var(--clay-text-soft,#6b7570);background:#efece5;border:1px solid transparent;transition:.15s}
+.fin-chip:hover:not(.active){color:#1f2a25;background:#e8e4db}
+.fin-chip.active{background:var(--brand,#0F5A47);color:#fff;box-shadow:0 4px 10px rgba(15,90,71,.28)}
+.fin-filter-row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.fin-filter-row .seg{align-self:flex-end}
+.fin-period{font-size:11px;font-weight:800;color:var(--clay-text-soft,#6b7570)}
+
+.fin-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media(min-width:900px){.fin-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.fin-kpi{padding:14px 16px}
+.fin-kpi-label{font-size:10px;font-weight:900;color:#64748b;letter-spacing:.04em}
+.fin-kpi-value{font-size:clamp(17px,2.3vw,25px);font-weight:900;margin-top:6px;letter-spacing:-.02em;line-height:1.15;word-break:break-word}
+.fin-kpi-sub{font-size:10.5px;color:#94a3b8;margin-top:5px;line-height:1.3}
+.fin-kpi.pos .fin-kpi-value{color:#0F5A47}
+.fin-kpi.neg .fin-kpi-value{color:#b42318}
+.fin-kpi.warn .fin-kpi-value{color:#b54708}
+.fin-na{color:#cbd5d1;font-weight:800}
+
+.fin-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media(min-width:760px){.fin-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.fin-stat{display:flex;flex-direction:column;gap:2px;padding:10px 14px;border-radius:14px;background:rgba(255,255,255,.55);border:1px solid #e9e5de}
+.fin-stat span{font-size:10px;font-weight:800;color:#64748b}
+.fin-stat b{font-size:15px;font-weight:900}
+
+.fin-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 16px 0}
+.fin-panel-head h3{font-weight:900;font-size:15px;margin:0}
+.fin-panel-head p{font-size:11px;color:#94a3b8;margin:2px 0 0}
+.fin-panel-body{padding:12px 16px 16px}
+.fin-badge{display:inline-flex;border-radius:999px;padding:3px 9px;font-size:10px;font-weight:900}
+.fin-badge.paid{background:#dcfce7;color:#166534}
+.fin-badge.unpaid{background:#fee2e2;color:#991b1b}
+.fin-badge.info{background:#f1efe9;color:#475467}
+
+.fin-table{width:100%;border-collapse:collapse}
+.fin-table th,.fin-table td{padding:9px 10px;font-size:12.5px;border-bottom:1px solid #eeebe4;text-align:left;white-space:nowrap}
+.fin-table thead th{font-size:10px;font-weight:900;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#faf9f7}
+.fin-table td.r,.fin-table .fin-compare td{text-align:right}
+.fin-compare thead th:not(:first-child){text-align:right}
+.fin-compare tbody th{font-weight:700;color:#475467}
+.fin-compare tr.strong th,.fin-compare tr.strong td{font-weight:900;color:#1f2a25}
+.fin-compare tr.good td{color:#0F5A47}
+.fin-compare tr.bad td{color:#b54708}
+.fin-compare td.pos,.pos{color:#0F5A47}
+.fin-compare td.neg,.neg{color:#b42318}
+.fin-wrap{white-space:normal!important;min-width:150px}
+.fin-table-wrap{overflow:auto;max-height:520px}
+.fin-table-wrap thead th{position:sticky;top:0;z-index:1}
+
+.fin-row{margin-bottom:12px}
+.fin-row:last-child{margin-bottom:0}
+.fin-row-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:12.5px}
+.fin-row-top b{font-weight:800}
+.fin-row-top span{font-weight:900}
+.fin-row-sub{font-size:10.5px;color:#94a3b8;margin-top:4px}
+.fin-bar{height:8px;border-radius:99px;background:#ebe8e1;overflow:hidden;margin-top:6px}
+.fin-bar span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#178062,#0d4a3a);min-width:0}
+.fin-line{padding:8px 0;border-bottom:1px solid #eeebe4}
+.fin-line:last-of-type{border-bottom:0}
+.fin-clip{display:flex;flex-direction:column;min-width:0;font-weight:700!important}
+.fin-clip small{font-size:10.5px;color:#94a3b8;font-weight:600}
+.fin-sub-title{font-size:10px;font-weight:900;color:#64748b;letter-spacing:.04em;text-transform:uppercase;margin:12px 0 2px}
+.fin-chips{display:flex;gap:6px;flex-wrap:wrap}
+.fin-chip-static{font-size:11px;padding:5px 10px;border-radius:999px;background:#f1efe9;color:#475467}
+.fin-chip-static b{margin-left:4px;color:#1f2a25}
+.fin-note{font-size:10.5px;color:#94a3b8;margin:10px 0 0}
+.fin-empty{padding:22px 10px;text-align:center;color:#94a3b8;font-size:12.5px}
+
+.fin-legend{display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:11px;font-weight:800;color:#475467;margin-bottom:8px}
+.fin-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.fin-legend em{margin-left:auto;font-style:normal;font-weight:600;color:#94a3b8}
+.fin-legend i.o,.fin-col-bars i.o{background:#0F5A47}
+.fin-legend i.e,.fin-col-bars i.e{background:#f0a35e}
+.fin-trend-scroll{overflow-x:auto;padding-bottom:4px}
+.fin-trend-bars{display:flex;align-items:flex-end;gap:6px;height:190px;min-width:100%;width:max-content}
+.fin-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:24px;flex:1}
+.fin-col-bars{display:flex;align-items:flex-end;gap:2px;height:100%;width:100%;justify-content:center}
+.fin-col-bars i{display:block;width:10px;max-width:46%;border-radius:4px 4px 0 0;min-height:0}
+.fin-col span{font-size:9.5px;color:#94a3b8;margin-top:5px;font-weight:700}
+
+.fin-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 16px 0}
+.fin-toolbar .input{margin-top:0;min-height:38px;padding:8px 12px;font-size:13px}
+.fin-toolbar .fin-search{flex:1;min-width:180px}
+.fin-toolbar select.input{width:auto}
+.fin-loading{font-size:11px;font-weight:800;color:#0F5A47}
+
+/* PIN */
+.fin-pin-box{background:#fff;border-radius:24px;width:100%;max-width:320px;padding:22px 20px 18px;text-align:center}
+.fin-pin-icon{width:46px;height:46px;margin:0 auto 10px;border-radius:15px;display:flex;align-items:center;justify-content:center;background:#e3efe9;color:#0F5A47;font-size:18px}
+.fin-pin-dots{display:flex;justify-content:center;gap:12px;margin:14px 0 6px}
+.fin-pin-dots span{width:14px;height:14px;border-radius:50%;border:2px solid #b7c4bf;transition:.12s}
+.fin-pin-dots span.on{background:#0F5A47;border-color:#0F5A47}
+.fin-pin-error{min-height:18px;font-size:12px;font-weight:800;color:#b42318;margin-bottom:8px}
+.fin-pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.fin-pin-pad button{height:54px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;font-size:20px;font-weight:800}
+.fin-pin-pad button:active{transform:scale(.96);background:rgba(255,255,255,.85)}
+.fin-pin-pad button.sm{font-size:14px;color:#64748b}
+.fin-shake{animation:finShake .35s}
+@keyframes finShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
