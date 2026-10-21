@@ -1,6 +1,18 @@
 // Fortuna Laundry — ui module
 
-function showTab(tab){document.querySelectorAll('.tab').forEach(x=>x.classList.add('hidden'));document.querySelectorAll('.navbtn').forEach(x=>x.classList.remove('nav-active'));if(tab==='deadline'){$('tab-deadline').classList.remove('hidden');$('title').textContent='Deadline Dashboard';document.querySelector('[data-tab=deadline]')?.classList.add('nav-active');loadDeadline();}else if(tab==='expense'){$('tab-expense').classList.remove('hidden');$('title').textContent='Expense';document.querySelector('[data-tab=expense]')?.classList.add('nav-active');loadExpense();}else{$('tab-ops').classList.remove('hidden');$('title').textContent='Operasional Dashboard';document.querySelector('[data-tab=ops]')?.classList.add('nav-active');showOpsView(opsView||'new');}const cur=(tab==='deadline'||tab==='expense')?tab:'ops';
+function showTab(tab){
+  // Tab Finance dikunci PIN: setiap kali dibuka harus memasukkan PIN lagi.
+  if(tab==='finance'&&!finUnlocked){openFinancePin();return;}
+  if(tab!=='finance'&&finUnlocked)lockFinance();
+  const cur=(tab==='deadline'||tab==='expense'||tab==='finance')?tab:'ops';
+  const wasFinance=!$('tab-finance').classList.contains('hidden');
+  document.querySelectorAll('.tab').forEach(x=>x.classList.add('hidden'));
+  $('tab-'+cur).classList.remove('hidden');
+  $('title').textContent={ops:'Operasional Dashboard',deadline:'Deadline Dashboard',expense:'Expense',finance:'Finance'}[cur];
+  if(cur==='deadline')loadDeadline();
+  else if(cur==='expense')loadExpense();
+  else if(cur==='finance'){if(wasFinance)loadFinance();else finOpen();}
+  else showOpsView(opsView||'new');
   document.querySelectorAll('.navbtn,.bnav-btn').forEach(x=>x.classList.remove('nav-active'));
   document.querySelectorAll('[data-tab="'+cur+'"]').forEach(x=>x.classList.add('nav-active'));
   $('globalDeadlineTray')?.classList.toggle('hidden',cur==='deadline');
@@ -17,7 +29,7 @@ function closeMobileDrawer(){$('mobileDrawer')?.classList.remove('show');$('draw
 
 function toggleMobileDrawer(){if($('mobileDrawer')?.classList.contains('show'))closeMobileDrawer();else{$('mobileDrawer')?.classList.add('show');$('drawerBackdrop')?.classList.add('show');}}
 
-function refreshActiveTab(){const btn=$('globalRefreshBtn'),icon=$('globalRefreshIcon');if(btn)btn.disabled=true;if(icon)icon.className='fa-solid fa-spinner fa-spin mr-1';const active=document.querySelector('.tab:not(.hidden)')?.id;const done=active==='tab-deadline'?loadDeadline(true):active==='tab-expense'?loadExpense():loadDashboard();Promise.resolve(done).finally(()=>{if(btn)btn.disabled=false;if(icon)icon.className='fa-solid fa-rotate-right mr-1'});}
+function refreshActiveTab(){const btn=$('globalRefreshBtn'),icon=$('globalRefreshIcon');if(btn)btn.disabled=true;if(icon)icon.className='fa-solid fa-spinner fa-spin mr-1';const active=document.querySelector('.tab:not(.hidden)')?.id;const done=active==='tab-deadline'?loadDeadline():active==='tab-expense'?loadExpense():active==='tab-finance'?loadFinance():loadDashboard();Promise.resolve(done).finally(()=>{if(btn)btn.disabled=false;if(icon)icon.className='fa-solid fa-rotate-right mr-1'});}
 
 function closeModal(id){$(id).classList.remove('show');if(id==='previewModal'||id==='numpadModal'||id==='payModal')document.body.classList.remove('overflow-hidden')}
 
