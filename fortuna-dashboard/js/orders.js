@@ -336,7 +336,7 @@ function orderDateFilterValue(order){
 }
 function applyOrderDateFilter(){const from=$('orderDateFrom')?.value||'';const to=$('orderDateTo')?.value||'';if(from&&to&&from>to){toast('Tanggal mulai tidak boleh melewati tanggal akhir.',false);return}renderOrders()}
 function resetOrderDateFilter(){if($('orderDateFrom'))$('orderDateFrom').value='';if($('orderDateTo'))$('orderDateTo').value='';renderOrders()}
-function renderOrders(){
+function getVisibleOrders(){
   const q=($('search')?.value||'').toLowerCase();
   const dateFrom=$('orderDateFrom')?.value||'';
   const dateTo=$('orderDateTo')?.value||'';
@@ -351,6 +351,10 @@ function renderOrders(){
     const matchesDate=(!dateFrom||(orderDate&&orderDate>=dateFrom))&&(!dateTo||(orderDate&&orderDate<=dateTo));
     return matchesMode&&matchesStatus&&matchesSearch&&matchesDate;
   });
+  return {list,dateFrom,dateTo,activeMode};
+}
+function renderOrders(){
+  const {list,dateFrom,dateTo,activeMode}=getVisibleOrders();
   $('orderCount').textContent=list.length+' order'+(statusFilter!=='ALL'?' • filter '+statusFilter:'')+((dateFrom||dateTo)?' • tanggal '+(dateFrom||'awal')+' s/d '+(dateTo||'sekarang'):'')+' • '+activeMode;
   $('orderRows').innerHTML=list.map(o=>{
     const identity=getOrderType(o);
@@ -374,6 +378,8 @@ function renderOrders(){
         ${i.STATUS==='QC'||i.STATUS==='DIPROSES'?'<button onclick="setStatus(\''+esc(i.ITEM_ID)+'\',\'SIAP\')" class="btn text-[9px] bg-emerald-50 text-emerald-700 rounded-lg px-2 py-1">SIAP</button>':''}
         ${i.STATUS==='SIAP'?'<button onclick="setStatus(\''+esc(i.ITEM_ID)+'\',\'SELESAI\')" class="btn text-[9px] bg-slate-900 text-white rounded-lg px-2 py-1">SELESAI</button>':''}
       </div>`).join('');
+    const activeItems=(o.items||[]).filter(i=>nextItemStatus(i.STATUS));
+    const pushAll=activeItems.length>=2?'<button onclick="pushOrder(\''+esc(o.ORDER_ID)+'\')" title="Naikkan semua item order ini ke status berikutnya" class="btn w-full text-[10px] font-black bg-slate-900 text-white rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-forward mr-1"></i>'+esc(pushOrderLabel(o))+'</button>':'';
     return `<tr class="border-t border-slate-100 align-top ${isPaid?'bg-emerald-50':''}">
       <td class="px-3 py-2.5 whitespace-nowrap">
         <div class="flex items-center gap-2">
@@ -388,15 +394,15 @@ function renderOrders(){
       <td class="px-3 py-2.5 min-w-[185px]"><div class="order-actions">
         <div class="order-action-top">
           ${unpaid&&!allDone?'<button onclick="openPay(\''+esc(o.ORDER_ID)+'\')" class="btn text-[10px] font-black bg-red-50 text-red-700 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-check mr-1"></i>LUNAS</button>':''}
-          <button onclick="openAddItem('${esc(o.ORDER_ID)}')" title="Tambah item/paket" class="btn text-[#0F5A47] bg-emerald-50 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-plus"></i></button>
           <button onclick="printOrder('${esc(o.ORDER_ID)}')" title="Print" class="btn text-slate-600 bg-slate-100 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-print"></i></button>
           <button onclick="waOrder('${esc(o.ORDER_ID)}')" title="WhatsApp" class="btn text-emerald-700 bg-emerald-50 rounded-lg px-2.5 py-1.5"><i class="fa-brands fa-whatsapp"></i></button>
           <button onclick="deleteOrder('${esc(o.ORDER_ID)}')" title="Hapus order permanen" class="btn text-red-700 bg-red-50 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-trash"></i></button>
         </div>
-        ${!allDone&&itemActions?'<div class="order-action-status">'+itemActions+'</div>':''}
+        ${!allDone&&itemActions?'<div class="order-action-status">'+pushAll+itemActions+'</div>':''}
       </div></td>
     </tr>`;
   }).join('')||`<tr><td colspan="6" class="p-10 text-center text-slate-400">Belum ada order ${activeMode.toLowerCase()}.</td></tr>`;
+  if(typeof updatePushFilteredButton==='function')updatePushFilteredButton();
 }
 
 function toggleStatusFilter(filter,force=false){if(!force&&statusFilter===filter&&filter!=='ALL')statusFilter='ALL';else statusFilter=filter;document.querySelectorAll('.summary-filter').forEach(b=>b.classList.toggle('active',b.dataset.filter===statusFilter));renderOrders()}
@@ -671,7 +677,6 @@ async function saveEdit(e){
     }
     closeModal('editModal');
     await loadDashboard(true);
-    await loadDeadline();
     if(syncFailed)toast('Perubahan item tersimpan, tetapi nama/WA pada sebagian item lain gagal diperbarui. Refresh dan periksa kembali.',false);
     else toast('Item diperbarui • Tagihan '+rupiah(bill));
   }catch(err){
@@ -685,98 +690,3 @@ async function saveEdit(e){
 function openPay(id){payOrder=id;$('payModal').classList.add('show')}
 
 async function pay(method){try{await api('payment_update',{ORDER_ID:payOrder,METODE_TRANSAKSI:method});closeModal('payModal');await loadDashboard(true);toast('Pembayaran #'+payOrder+' menjadi LUNAS')}catch(e){toast(e.message,false)}}
-
-// ================== TAMBAH ITEM KE ORDER YANG SUDAH ADA ==================
-function addItemRecalc(forceAuto=false){
-  const select=$('add-paket'),qtyField=$('add-berat'),input=$('add-tagihan');
-  const inst=select.dataset.mode==='INSTANSI';
-  const instansi=select.dataset.instansi||'';
-  const custom=select.value===PACKAGE_CUSTOM_OPTION;
-  if($('add-custom-wrap'))$('add-custom-wrap').style.display=custom?'':'none';
-  const paket=custom?String($('add-custom-name')?.value||'').trim():select.value;
-  const unit=inst?'pcs':(custom?'unit':(PACKAGE_CATALOG[paket]?.unit||'unit'));
-  qtyField.dataset.int=(!inst&&unit==='kg')?'':'1';
-  qtyField.inputMode=(!inst&&unit==='kg')?'decimal':'numeric';
-  $('add-berat-label').textContent=inst?'JUMLAH (PCS)':(unit==='kg'?'BERAT (KG)':'JUMLAH ('+unit.toUpperCase()+')');
-  if(qtyField.dataset.int==='1'&&qtyField.value!==''){
-    const normalized=String(Math.max(0,Math.round(parseOrderQuantity(qtyField.value))));
-    if(qtyField.value!==normalized)qtyField.value=normalized;
-  }
-  if(forceAuto){
-    if(custom)input.value='0';
-    else if(inst)input.value=String(institutionItemAmount(instansi,paket,qtyField.value));
-    else input.value=String(regularPackageAmount(paket,qtyField.value));
-  }
-}
-
-function openAddItem(orderId){
-  const o=(orders||[]).find(x=>String(x.ORDER_ID)===String(orderId));
-  if(!o)return toast('Order tidak ditemukan. Refresh dashboard lalu coba lagi.',false);
-  const identity=getOrderType(o);
-  const inst=identity.type==='INSTANSI';
-  const instansi=identity.instansi||'';
-  const catalog=inst?Object.keys(INSTITUTION_CATALOG[instansi]||{}):[...PACKAGES];
-  const first=inst?(catalog[0]||PACKAGE_CUSTOM_OPTION):'FLEKSIBEL';
-
-  $('add-order').value=o.ORDER_ID;
-  $('add-info').textContent='#'+o.ORDER_ID+' • '+(o.NAMA||'-')+(inst?' • '+instansi:'');
-  $('add-paket-label').textContent=inst?'ITEM':'PAKET';
-
-  const select=$('add-paket');
-  select.innerHTML=(inst
-    ?catalog.map(p=>'<option value="'+esc(p)+'">'+esc(institutionPackageLabel(instansi,p,INSTITUTION_CATALOG[instansi][p]))+'</option>').join('')
-    :catalog.map(p=>'<option value="'+esc(p)+'">'+esc(packageOptionLabel(p))+'</option>').join('')
-  )+'<option value="'+PACKAGE_CUSTOM_OPTION+'">CUSTOM — Isi nama paket sendiri</option>';
-  select.value=first;
-  select.dataset.mode=inst?'INSTANSI':'REGULER';
-  select.dataset.instansi=instansi;
-
-  $('add-custom-name').value='';
-  $('add-berat').value=inst?String(institutionDefaultQuantity(instansi,first==='__CUSTOM__'?'':first)):'1';
-  $('add-tagihan').value='0';
-
-  select.onchange=()=>addItemRecalc(true);
-  $('add-berat').oninput=()=>addItemRecalc(true);
-  $('add-custom-name').oninput=()=>{};
-  addItemRecalc(true);
-  $('addItemModal').classList.add('show');
-}
-
-async function saveAddItem(e){
-  e.preventDefault();
-  const btn=$('addItemSaveBtn'),txt=$('addItemSaveText');
-  if(btn.disabled)return;
-  const orderId=$('add-order').value;
-  const o=(orders||[]).find(x=>String(x.ORDER_ID)===String(orderId));
-  if(!o)return toast('Order tidak ditemukan. Refresh dashboard lalu coba lagi.',false);
-
-  const select=$('add-paket');
-  const paket=select.value===PACKAGE_CUSTOM_OPTION?String($('add-custom-name')?.value||'').trim():select.value;
-  if(!paket)return toast('Isi nama paket custom terlebih dahulu.',false);
-
-  const inst=select.dataset.mode==='INSTANSI';
-  const unit=inst?'pcs':(PACKAGE_CATALOG[paket]?.unit||'unit');
-  const rawQty=parseOrderQuantity($('add-berat').value);
-  const qty=unit==='kg'?rawQty:Math.round(rawQty);
-  if(!(qty>0))return toast((unit==='kg'?'Berat (KG)':'Jumlah ('+unit.toUpperCase()+')')+' harus lebih dari 0.',false);
-  const bill=orderMoneyValue($('add-tagihan').value);
-  if(!(bill>0))return toast('Tagihan harus lebih dari 0.',false);
-
-  btn.disabled=true;
-  if(txt)txt.textContent='Menyimpan...';
-  try{
-    await api('order_add_item',{
-      ORDER_ID:String(orderId),PAKET:paket,
-      BERAT:String(qty),TAGIHAN:String(Math.round(bill))
-    });
-    closeModal('addItemModal');
-    await loadDashboard(true);
-    await loadDeadline();
-    toast('Item ditambahkan ke order #'+orderId+' • '+rupiah(bill));
-  }catch(err){
-    toast('Gagal menambah item: '+err.message,false);
-  }finally{
-    btn.disabled=false;
-    if(txt)txt.textContent='Tambahkan Item';
-  }
-}
