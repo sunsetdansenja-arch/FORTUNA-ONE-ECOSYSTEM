@@ -394,6 +394,7 @@ function renderOrders(){
       <td class="px-3 py-2.5 min-w-[185px]"><div class="order-actions">
         <div class="order-action-top">
           ${unpaid&&!allDone?'<button onclick="openPay(\''+esc(o.ORDER_ID)+'\')" class="btn text-[10px] font-black bg-red-50 text-red-700 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-check mr-1"></i>LUNAS</button>':''}
+          <button onclick="openAddItem('${esc(o.ORDER_ID)}')" title="Tambah item ke order ini" class="btn text-[#0F5A47] bg-emerald-50 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-plus"></i></button>
           <button onclick="printOrder('${esc(o.ORDER_ID)}')" title="Print" class="btn text-slate-600 bg-slate-100 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-print"></i></button>
           <button onclick="waOrder('${esc(o.ORDER_ID)}')" title="WhatsApp" class="btn text-emerald-700 bg-emerald-50 rounded-lg px-2.5 py-1.5"><i class="fa-brands fa-whatsapp"></i></button>
           <button onclick="deleteOrder('${esc(o.ORDER_ID)}')" title="Hapus order permanen" class="btn text-red-700 bg-red-50 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-trash"></i></button>
