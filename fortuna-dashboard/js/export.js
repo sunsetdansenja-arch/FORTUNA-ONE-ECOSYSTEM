@@ -48,12 +48,13 @@ function buildOrderExport() {
 function buildExpenseExport() {
   const list = getFilteredExpenses();
   const method = $('expenseMethodFilter')?.value || 'ALL';
+  const { from: dateFrom, to: dateTo } = typeof expenseDateRange === 'function' ? expenseDateRange() : { from: '', to: '' };
   const rows = list.map((r, idx) => {
     const day = String(r.TANGGAL || '').slice(0, 10);
     return [idx + 1, /^\d{4}-\d{2}-\d{2}$/.test(day) ? { d: day } : String(r.TANGGAL || ''), String(r.EXPENSE_ID || ''), r.KETERANGAN || '', String(r.KATEGORI || 'LAINNYA').toUpperCase(), r.METODE_TRANSAKSI || '', { m: receiptParseMoney(r.NOMINAL) }];
   });
   return {
-    name: 'log-finance-' + (method !== 'ALL' ? method.toLowerCase() + '-' : '') + exportToday(),
+    name: 'log-finance-' + (method !== 'ALL' ? method.toLowerCase() + '-' : '') + (dateFrom || dateTo ? (dateFrom || 'awal') + '-sd-' + (dateTo || 'sekarang') + '-' : '') + exportToday(),
     sheets: [{ title: 'Log Finance', header: ['No', 'Tanggal', 'ID', 'Keterangan', 'Kategori', 'Metode', 'Nominal'], rows, totalCol: 6 }]
   };
 }
