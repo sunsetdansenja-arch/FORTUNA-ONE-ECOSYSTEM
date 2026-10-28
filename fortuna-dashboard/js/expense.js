@@ -8,14 +8,34 @@ let expenses=[];
 // DESC = terbaru dulu (default), ASC = terlama dulu. Tanggal tidak valid selalu di paling bawah.
 function expenseSortDir(){return $('expenseSort')?.value==='ASC'?'ASC':'DESC'}
 function expenseSortLabel(){return expenseSortDir()==='ASC'?'Terlama → Terbaru':'Terbaru → Terlama'}
+function expenseDateRange(){
+  return {from:$('expenseDateFrom')?.value||'',to:$('expenseDateTo')?.value||''};
+}
+function expenseDateRangeLabel(){
+  const {from,to}=expenseDateRange();
+  return from||to?'Tanggal: '+(from||'awal')+' s/d '+(to||'sekarang'):'Semua tanggal';
+}
+function applyExpenseDateFilter(){
+  const {from,to}=expenseDateRange();
+  if(from&&to&&from>to){toast('Tanggal mulai tidak boleh melewati tanggal akhir.',false);return}
+  renderExpense();
+}
+function resetExpenseDateFilter(){
+  if($('expenseDateFrom'))$('expenseDateFrom').value='';
+  if($('expenseDateTo'))$('expenseDateTo').value='';
+  renderExpense();
+}
 function expenseTime(x){const v=String(x.TANGGAL||'').trim();return v?Date.parse(v.length<=10?v+'T00:00:00':v):NaN}
 function getFilteredExpenses(){
   const q=String($('expenseSearch')?.value||'').trim().toLowerCase();
   const method=$('expenseMethodFilter')?.value||'ALL';
+  const {from:dateFrom,to:dateTo}=expenseDateRange();
   const dir=expenseSortDir()==='ASC'?1:-1;
   const list=(expenses||[]).filter(x=>{
     const hay=String(x.KETERANGAN||'')+' '+String(x.EXPENSE_ID||'');
-    return(!q||hay.toLowerCase().includes(q))&&(method==='ALL'||String(x.METODE_TRANSAKSI||'')===method);
+    const day=String(x.TANGGAL||'').trim().slice(0,10);
+    const matchesDate=(!dateFrom||(day&&day>=dateFrom))&&(!dateTo||(day&&day<=dateTo));
+    return matchesDate&&(!q||hay.toLowerCase().includes(q))&&(method==='ALL'||String(x.METODE_TRANSAKSI||'')===method);
   });
   return list.map((x,i)=>({x,i,t:expenseTime(x)})).sort((a,b)=>{
     const an=Number.isNaN(a.t),bn=Number.isNaN(b.t);
