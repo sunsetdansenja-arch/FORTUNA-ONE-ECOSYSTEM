@@ -123,10 +123,7 @@ function renderOrdersPrint(note){
 function printExpenses(){
   const q=String($('expenseSearch')?.value||'').trim().toLowerCase();
   const method=$('expenseMethodFilter')?.value||'ALL';
-  const list=(expenses||[]).filter(x=>{
-    const hay=String(x.KETERANGAN||'')+' '+String(x.EXPENSE_ID||'');
-    return (!q||hay.toLowerCase().includes(q))&&(method==='ALL'||String(x.METODE_TRANSAKSI||'')===method);
-  });
+  const list=getFilteredExpenses();
 
   const rows=list.map(x=>`<tr>
     <td>${printEscape(expenseDateLabel(x.TANGGAL))}</td>
@@ -140,7 +137,7 @@ function printExpenses(){
   const total=list.reduce((s,x)=>s+(Number(String(x.NOMINAL||'').replace(/[^0-9.-]/g,''))||0),0);
   openPrintDocument(
     'Laporan Finance — Fortuna Laundry',
-    `${list.length} transaksi • Metode: ${method==='ALL'?'Semua':method}${q?' • Pencarian: '+q:''}`,
+    `${list.length} transaksi • Metode: ${method==='ALL'?'Semua':method}${q?' • Pencarian: '+q:''} • Urut tanggal: ${expenseSortLabel()}`,
     `<table><thead><tr><th>Tanggal</th><th>ID</th><th>Keterangan</th><th>Kategori</th><th>Metode</th><th class="amount">Nominal</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="total">Total nominal: ${printMoney(total)}</div>`
   );
