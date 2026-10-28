@@ -44,6 +44,20 @@ function buildOrderExport() {
   };
 }
 
+// Log Finance -> sheet. Urutan & filter sama dengan tampilan / Cetak PDF (getFilteredExpenses).
+function buildExpenseExport() {
+  const list = getFilteredExpenses();
+  const method = $('expenseMethodFilter')?.value || 'ALL';
+  const rows = list.map((r, idx) => {
+    const day = String(r.TANGGAL || '').slice(0, 10);
+    return [idx + 1, /^\d{4}-\d{2}-\d{2}$/.test(day) ? { d: day } : String(r.TANGGAL || ''), String(r.EXPENSE_ID || ''), r.KETERANGAN || '', String(r.KATEGORI || 'LAINNYA').toUpperCase(), r.METODE_TRANSAKSI || '', { m: receiptParseMoney(r.NOMINAL) }];
+  });
+  return {
+    name: 'log-finance-' + (method !== 'ALL' ? method.toLowerCase() + '-' : '') + exportToday(),
+    sheets: [{ title: 'Log Finance', header: ['No', 'Tanggal', 'ID', 'Keterangan', 'Kategori', 'Metode', 'Nominal'], rows, totalCol: 6 }]
+  };
+}
+
 /* ---------- CSV ---------- */
 function csvCell(v) {
   if (v && typeof v === 'object') v = v.d !== undefined ? v.d : v.m;
@@ -158,19 +172,34 @@ function exportOrders(format) {
   } catch (e) { toast('Ekspor gagal: ' + e.message, false); }
 }
 
-// Menu dropdown memakai posisi fixed agar tidak terpotong card.
-function toggleExportMenu(ev) {
+function exportExpenses(format) {
+  closeExportMenu();
+  let data;
+  try { data = buildExpenseExport(); } catch (e) { toast('Gagal menyiapkan ekspor: ' + e.message, false); return; }
+  if (!data.sheets[0].rows.length) { toast('Tidak ada expense untuk diekspor. Cek filter.', false); return; }
+  try {
+    if (format === 'csv') exportDownload(new Blob([buildCsv(data.sheets[0])], { type: 'text/csv;charset=utf-8' }), data.name + '.csv');
+    else exportDownload(buildXlsx(data.sheets), data.name + '.xlsx');
+    toast(data.sheets[0].rows.length + ' transaksi diekspor ke ' + (format === 'csv' ? 'CSV' : 'Excel'));
+  } catch (e) { toast('Ekspor gagal: ' + e.message, false); }
+}
+
+// Menu dropdown memakai posisi fixed agar tidak terpotong card. id menu opsional (default: menu Daftar Order).
+const EXPORT_MENU_IDS = ['exportMenu', 'expenseExportMenu'];
+function toggleExportMenu(ev, id) {
   ev.stopPropagation();
-  const menu = $('exportMenu');
-  if (!menu.classList.contains('hidden')) { closeExportMenu(); return; }
+  const menu = $(id || 'exportMenu');
+  const wasOpen = !menu.classList.contains('hidden');
+  closeExportMenu();
+  if (wasOpen) return;
   const r = ev.currentTarget.getBoundingClientRect();
   menu.classList.remove('hidden');
   const w = menu.offsetWidth;
   menu.style.top = (r.bottom + 6) + 'px';
   menu.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px';
 }
-function closeExportMenu() { const m = $('exportMenu'); if (m) m.classList.add('hidden'); }
-document.addEventListener('click', e => { const m = $('exportMenu'); if (m && !m.classList.contains('hidden') && !m.contains(e.target)) closeExportMenu(); });
+function closeExportMenu() { EXPORT_MENU_IDS.forEach(id => { const m = $(id); if (m) m.classList.add('hidden'); }); }
+document.addEventListener('click', e => { const open = EXPORT_MENU_IDS.map(id => $(id)).filter(m => m && !m.classList.contains('hidden')); if (open.length && !open.some(m => m.contains(e.target))) closeExportMenu(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeExportMenu(); });
 window.addEventListener('scroll', closeExportMenu, true);
 window.addEventListener('resize', closeExportMenu);
