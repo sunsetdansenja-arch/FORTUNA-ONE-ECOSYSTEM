@@ -221,6 +221,7 @@ function buildReceiptModel(o) {
     dateText: receiptFormatDate(o.START ? receiptParseDate(o.START) : new Date()),
     orderNo: '#' + (receiptAscii(o.ORDER_ID || 'PREVIEW') || 'PREVIEW'),
     instansi: receiptAscii(receiptInstansiLabel(o)).toUpperCase(),
+    isInstansi: (typeof getOrderType === 'function' ? getOrderType(o).type === 'INSTANSI' : false),
     name: receiptAscii(o.NAMA || '-').toUpperCase() || '-',
     items: items,
     extraNote: receiptNoteLines(o.RECEIPT_NOTE),
@@ -252,8 +253,10 @@ function buildReceiptLines(m) {
   const blank = function () { add('', 'left', false); };
   const sep = function () { add('-'.repeat(RECEIPT_COLUMNS), 'left', false); };
 
-  add('', 'center', false, { logo: true });
-  blank();
+  if (!m.isInstansi) {
+    add('', 'center', false, { logo: true });
+    blank();
+  }
   center(m.store.name, true);
   m.store.address.forEach(function (a) { center(a); });
   center(m.store.phone);
@@ -277,6 +280,10 @@ function buildReceiptLines(m) {
     sep();
   }
   lr('TOTAL', receiptRupiah(m.total), true);
+  if (m.isInstansi) {
+    for (let i = 0; i < 4; i++) add('', 'left', false, { feed: true });
+    return L;
+  }
   blank();
   center(m.status, true);
   if (m.method) center('Metode: ' + m.method);
