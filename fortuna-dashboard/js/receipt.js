@@ -36,7 +36,7 @@ function receiptRawHTML(m) {
   const hasLogo = typeof FORTUNA_LOGO_PNG !== 'undefined' && FORTUNA_LOGO_PNG;
   const body = lines.map(function (l) {
     if (l.logo) {
-      return hasLogo ? '<div class="ln"><img src="' + FORTUNA_LOGO_PNG + '" alt="" style="width:' + logoPct + '%"></div>' : '';
+      return hasLogo && !m.slim ? '<div class="ln"><img src="' + FORTUNA_LOGO_PNG + '" alt="" style="width:' + logoPct + '%"></div>' : '';
     }
     const t = esc(l.text);
     return '<div class="ln' + (l.align === 'center' ? ' c' : '') + '">' + (l.bold ? '<b>' + t + '</b>' : t) + '</div>';
