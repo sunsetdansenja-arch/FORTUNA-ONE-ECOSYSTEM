@@ -216,12 +216,16 @@ function buildReceiptModel(o) {
   const statusRaw = receiptAscii(o.STATUS_PEMBAYARAN || '').toUpperCase();
   const status = statusRaw || (method ? 'LUNAS' : 'BELUM LUNAS');
 
+  // Struk instansi dibuat ramping: tanpa logo dan tanpa blok teks bawah
+  // (catatan QRIS, PERHATIAN, kritik & saran, ucapan terima kasih).
+  const orderType = typeof getOrderType === 'function' ? getOrderType(o) : { type: 'REGULER' };
+
   return {
+    slim: orderType.type === 'INSTANSI',
     store: RECEIPT_STORE,
     dateText: receiptFormatDate(o.START ? receiptParseDate(o.START) : new Date()),
     orderNo: '#' + (receiptAscii(o.ORDER_ID || 'PREVIEW') || 'PREVIEW'),
     instansi: receiptAscii(receiptInstansiLabel(o)).toUpperCase(),
-    isInstansi: (typeof getOrderType === 'function' ? getOrderType(o).type === 'INSTANSI' : false),
     name: receiptAscii(o.NAMA || '-').toUpperCase() || '-',
     items: items,
     extraNote: receiptNoteLines(o.RECEIPT_NOTE),
@@ -253,7 +257,7 @@ function buildReceiptLines(m) {
   const blank = function () { add('', 'left', false); };
   const sep = function () { add('-'.repeat(RECEIPT_COLUMNS), 'left', false); };
 
-  if (!m.isInstansi) {
+  if (!m.slim) {
     add('', 'center', false, { logo: true });
     blank();
   }
@@ -280,24 +284,24 @@ function buildReceiptLines(m) {
     sep();
   }
   lr('TOTAL', receiptRupiah(m.total), true);
-  if (m.isInstansi) {
-    for (let i = 0; i < 4; i++) add('', 'left', false, { feed: true });
-    return L;
-  }
   blank();
   center(m.status, true);
   if (m.method) center('Metode: ' + m.method);
   blank();
-  m.paymentNote.forEach(function (x) { center(x); });
-  blank();
-  center('PERHATIAN', true);
-  blank();
-  m.notes.forEach(function (n) { center('- ' + n); blank(); });
-  center(m.feedbackTitle);
-  center(m.phone);
-  blank();
-  center(m.thanks, true);
-  for (let i = 0; i < 4; i++) add('', 'left', false, { feed: true });
+  if (!m.slim) {
+    m.paymentNote.forEach(function (x) { center(x); });
+    blank();
+    center('PERHATIAN', true);
+    blank();
+    m.notes.forEach(function (n) { center('- ' + n); blank(); });
+    center(m.feedbackTitle);
+    center(m.phone);
+    blank();
+    center(m.thanks, true);
+  }
+  // struk ramping lebih pendek -> beri sedikit kertas ekstra agar mudah disobek
+  const feedLines = m.slim ? 6 : 4;
+  for (let i = 0; i < feedLines; i++) add('', 'left', false, { feed: true });
   return L;
 }
 
