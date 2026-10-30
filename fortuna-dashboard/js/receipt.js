@@ -47,8 +47,8 @@ function receiptRawHTML(m) {
 /* ----------------------- Renderer 2: tampilan nota ----------------------- */
 
 function receiptPaperHTML(m) {
-  const hasLogo = !m.isInstansi && typeof FORTUNA_LOGO_PNG !== 'undefined' && FORTUNA_LOGO_PNG;
-  const logo = hasLogo ? '<img src="' + FORTUNA_LOGO_PNG + '" alt="Fortuna Laundry">' : '';
+  const hasLogo = typeof FORTUNA_LOGO_PNG !== 'undefined' && FORTUNA_LOGO_PNG;
+  const logo = hasLogo && !m.slim ? '<img src="' + FORTUNA_LOGO_PNG + '" alt="Fortuna Laundry">' : '';
   return `<div class="receipt">
     <div style="text-align:center">${logo}<div class="receipt-brand">${esc(m.store.name)}</div>${m.store.address.map(a => `<div class="receipt-sub">${esc(a)}</div>`).join('')}<div class="receipt-sub">${esc(m.store.phone)}</div></div>
     <div class="row" style="margin-top:6px"><span>${esc(m.dateText)}</span><b>${esc(m.orderNo)}</b></div>
@@ -59,14 +59,12 @@ function receiptPaperHTML(m) {
     <hr>
     ${m.extraNote && m.extraNote.length ? `<div style="font-weight:800">KETERANGAN:</div><div style="white-space:pre-wrap">${esc(m.extraNote.join('\n'))}</div><hr>` : ''}
     <div class="row total"><span>TOTAL</span><span>${esc(receiptRupiah(m.total))}</span></div>
-    ${m.isInstansi ? '' : `
-      <div style="text-align:center;font-weight:800;margin-top:6px">${esc(m.status)}</div>
-      ${m.method ? `<div style="text-align:center;font-size:10px">Metode: ${esc(m.method)}</div>` : ''}
-      <div style="text-align:center;margin-top:5px;font-size:10px">${esc(m.paymentNote.join(' '))}</div>
-      <div class="note-title">PERHATIAN</div>
-      <div class="notes">${m.notes.map(n => `- ${esc(n)}`).join('<br><br>')}</div>
-      <div class="footer">${esc(m.feedbackTitle)}<br>${esc(m.phone)}<br><br>${esc(m.thanks)}</div>
-    `}
+    <div style="text-align:center;font-weight:800;margin-top:6px">${esc(m.status)}</div>
+    ${m.method ? `<div style="text-align:center;font-size:10px">Metode: ${esc(m.method)}</div>` : ''}
+    ${m.slim ? '' : `<div style="text-align:center;margin-top:5px;font-size:10px">${esc(m.paymentNote.join(' '))}</div>
+    <div class="note-title">PERHATIAN</div>
+    <div class="notes">${m.notes.map(n => `- ${esc(n)}`).join('<br><br>')}</div>
+    <div class="footer">${esc(m.feedbackTitle)}<br>${esc(m.phone)}<br><br>${esc(m.thanks)}</div>`}
   </div>`;
 }
 
