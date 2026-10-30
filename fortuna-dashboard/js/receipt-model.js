@@ -219,9 +219,11 @@ function buildReceiptModel(o) {
   // Struk instansi dibuat ramping: tanpa logo dan tanpa blok teks bawah
   // (catatan QRIS, PERHATIAN, kritik & saran, ucapan terima kasih).
   const orderType = typeof getOrderType === 'function' ? getOrderType(o) : { type: 'REGULER' };
+  const sourceItemId = String(o.ITEM_ID || '').trim().toUpperCase();
+  const slim = orderType.type === 'INSTANSI' || /^(SECATA|SECABA|PUSPOMAD)-/.test(sourceItemId);
 
   return {
-    slim: orderType.type === 'INSTANSI',
+    slim,
     store: RECEIPT_STORE,
     dateText: receiptFormatDate(o.START ? receiptParseDate(o.START) : new Date()),
     orderNo: '#' + (receiptAscii(o.ORDER_ID || 'PREVIEW') || 'PREVIEW'),
