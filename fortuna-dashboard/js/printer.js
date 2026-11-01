@@ -227,7 +227,15 @@ async function buildFortunaEscPos(o){
   };
 
   // reset printer, spasi baris default, Font A, rata tengah, bold off
-  segs.push({data:Uint8Array.of(0x1b,0x40, 0x1b,0x32, 0x1b,0x4d,0x00, 0x1b,0x61,0x01, 0x1b,0x45,0x00),delay:80});
+  segs.push({data:Uint8Array.of(
+    0x1b,0x40,                 // reset
+    0x1b,0x21,0x00,            // ESC ! 0 -> Font A, tanpa double/bold/underline
+    0x1b,0x4d,0x00,            // ESC M 0 -> Font A
+    0x1d,0x21,0x00,            // GS ! 0 -> ukuran karakter normal
+    0x1d,0x4c,0x00,0x00,       // GS L 0 -> margin kiri 0
+    0x1d,0x57,PRINTER_WIDTH&255,(PRINTER_WIDTH>>8)&255, // GS W -> area cetak 384 dot
+    0x1b,0x32,                 // spasi baris default
+    0x1b,0x61,0x01, 0x1b,0x45,0x00),delay:120});
 
   for(const line of lines){
     if(line.logo){
@@ -332,4 +340,18 @@ async function printReceipt(o){
       throw new Error('Cetak gagal ('+(err?.message||err)+'). Struk mungkin tercetak sebagian. Matikan-nyalakan printer, hubungkan ulang, lalu cetak ulang.');
     }
   }finally{printerPrinting=false}
+}
+
+async function printTestRuler(){
+  if(!(await ensurePrinter())&&!(await connectPrinter()))return;
+  const enc=t=>Array.from(t,c=>c.charCodeAt(0));
+  const init=[0x1b,0x40,0x1b,0x21,0x00,0x1b,0x4d,0x00,0x1d,0x21,0x00,0x1d,0x4c,0x00,0x00,
+    0x1d,0x57,PRINTER_WIDTH&255,(PRINTER_WIDTH>>8)&255,0x1b,0x32];
+  const L=(a,t)=>[0x1b,0x61,a,...enc(t),0x0a];
+  const bytes=[...init,
+    ...L(0,'1234567890'.repeat(5)),
+    ...L(0,'-'.repeat(32)),...L(0,'-'.repeat(42)),...L(0,'-'.repeat(48)),
+    ...L(0,'KIRI'),...L(2,'KANAN'),...L(1,'TENGAH'),
+    ...L(0,'RECEIPT_COLUMNS='+RECEIPT_COLUMNS),0x0a,0x0a,0x0a,0x0a];
+  await writePrinterPayload([{data:Uint8Array.from(bytes),delay:PRINTER_END_DELAY_MS}]);
 }
