@@ -251,7 +251,11 @@ function buildReceiptModel(o) {
 function buildReceiptLines(m) {
   const L = [];
   const add = function (text, align, bold, extra) {
-    L.push(Object.assign({ text: text, align: align || 'left', bold: !!bold }, extra || {}));
+    align = align || 'left';
+    // Baris rata kiri dipad ke RECEIPT_COLUMNS lalu dikirim sebagai 'center': blok 32 kolom
+    // selalu berada di tengah kertas, sejajar dengan header, berapa pun lebar karakter printer.
+    if (align === 'left' && !extra) { text = String(text || '').padEnd(RECEIPT_COLUMNS, ' '); align = 'center'; }
+    L.push(Object.assign({ text: text, align: align, bold: !!bold }, extra || {}));
   };
   const center = function (t, b) { receiptWrapText(t).forEach(function (x) { add(x, 'center', b); }); };
   const left = function (t, b) { receiptWrapText(t).forEach(function (x) { add(x, 'left', b); }); };
