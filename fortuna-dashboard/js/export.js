@@ -53,33 +53,100 @@ function buildExpenseExport() {
     const day = String(r.TANGGAL || '').slice(0, 10);
     return [idx + 1, /^\d{4}-\d{2}-\d{2}$/.test(day) ? { d: day } : String(r.TANGGAL || ''), String(r.EXPENSE_ID || ''), r.KETERANGAN || '', String(r.KATEGORI || 'LAINNYA').toUpperCase(), r.METODE_TRANSAKSI || '', { m: receiptParseMoney(r.NOMINAL) }];
   });
-  // Ringkasan (sheet 2) -- aturan sama dengan Laporan Harian di Cetak / PDF:
-  // DEBIT = pemasukan per metode, selain DEBIT = KREDIT (pengeluaran).
+  return {
+    name: 'log-finance-' + (method !== 'ALL' ? method.toLowerCase() + '-' : '') + (dateFrom || dateTo ? (dateFrom || 'awal') + '-sd-' + (dateTo || 'sekarang') + '-' : '') + exportToday(),
+    sheets: [{ title: 'Log Finance', header: ['No', 'Tanggal', 'ID', 'Keterangan', 'Kategori', 'Metode', 'Nominal'], rows, totalCol: 6 }],
+    report: buildExpenseReportSheet(list)   // sheet 'Laporan Harian' (sama dengan Cetak / PDF); hanya untuk .xlsx
+  };
+}
+
+// Sheet 'Laporan Harian': tata letak sama dengan Cetak / PDF.
+// DEBIT = pemasukan per metode, selain DEBIT = KREDIT (pengeluaran). Total memakai rumus Excel (nilai cache ikut disimpan).
+function buildExpenseReportSheet(list) {
+  const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const isDebit = r => String(r.KATEGORI || '').toUpperCase() === 'DEBIT';
+  const hasTransfer = list.some(r => String(r.METODE_TRANSAKSI || '').toUpperCase() === 'TRANSFER');
+  const methods = hasTransfer ? ['CASH', 'QRIS', 'TRANSFER'] : ['CASH', 'QRIS'];
   const inBy = { CASH: 0, QRIS: 0, TRANSFER: 0 };
   let inOther = 0, out = 0;
   list.forEach(r => {
-    const n = receiptParseMoney(r.NOMINAL);
-    if (String(r.KATEGORI || '').toUpperCase() === 'DEBIT') {
-      const m = String(r.METODE_TRANSAKSI || '').toUpperCase();
-      if (m in inBy) inBy[m] += n; else inOther += n;
-    } else out += n;
+    const n = receiptParseMoney(r.NOMINAL), m = String(r.METODE_TRANSAKSI || '').toUpperCase();
+    if (isDebit(r)) { if (m in inBy) inBy[m] += n; else inOther += n; } else out += n;
   });
   const days = [...new Set(list.map(r => String(r.TANGGAL || '').slice(0, 10)).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort();
-  const fmtDay = d => d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4);
-  const periode = !days.length ? '-' : days.length === 1 ? fmtDay(days[0]) : fmtDay(days[0]) + ' - ' + fmtDay(days[days.length - 1]);
-  const hasTransfer = list.some(r => String(r.METODE_TRANSAKSI || '').toUpperCase() === 'TRANSFER');
-  const sumRows = [['Periode', periode], ['Total Cash', { m: inBy.CASH }], ['Total Qris', { m: inBy.QRIS }]];
-  if (hasTransfer) sumRows.push(['Total Transfer', { m: inBy.TRANSFER }]);
-  if (inOther) sumRows.push(['Total Lainnya', { m: inOther }]);
-  sumRows.push(['Total Pengeluaran', { m: out }]);
-  sumRows.push(['Total Saldo', { m: inBy.CASH + inBy.QRIS + inBy.TRANSFER + inOther - out }]);
-  return {
-    name: 'log-finance-' + (method !== 'ALL' ? method.toLowerCase() + '-' : '') + (dateFrom || dateTo ? (dateFrom || 'awal') + '-sd-' + (dateTo || 'sekarang') + '-' : '') + exportToday(),
-    sheets: [
-      { title: 'Log Finance', header: ['No', 'Tanggal', 'ID', 'Keterangan', 'Kategori', 'Metode', 'Nominal'], rows, totalCol: 6 },
-      { title: 'Ringkasan', header: ['Keterangan', 'Nilai'], rows: sumRows }
-    ]
+  const uniq = a => [...new Set(a)];
+  const info = [
+    ['Tahun', uniq(days.map(d => d.slice(0, 4))).join(' - ') || '-'],
+    ['Bulan', uniq(days.map(d => MONTHS[+d.slice(5, 7) - 1])).join(' - ') || '-'],
+    ['Tanggal', days.length > 1 ? days[0].slice(8, 10) + ' - ' + days[days.length - 1].slice(8, 10) : (days[0] ? days[0].slice(8, 10) : '-')]
+  ];
+  const cells = [], merges = [];
+  const put = (r, c, spec) => cells.push([r, c, spec]);
+  const ref = (r, c) => xlCol(c) + r;
+  const lastCol = 5 + methods.length;                 // A..D teks, E/F kategori, lalu kolom metode
+  const mStart = 6;
+
+  // Judul
+  put(1, 0, { t: 's', v: 'Laporan Harian Keuangan Fortuna Laundry', s: 6 });
+  merges.push('A1:' + ref(1, lastCol));
+
+  // Posisi tabel
+  const sumCount = 2 + methods.length + (inOther ? 1 : 0) + 1;     // pemasukan per metode (+lainnya) + pengeluaran + saldo
+  const hdr = Math.max(5, 2 + sumCount) + 2;
+  const first = hdr + 2, last = hdr + 1 + list.length;
+  const rng = c => ref(first, c) + ':' + ref(last, c);
+
+  // Info kiri
+  info.forEach((it, i) => { put(3 + i, 0, { t: 's', v: it[0], s: 0 }); put(3 + i, 2, { t: 's', v: ': ' + it[1], s: 0 }); });
+
+  // Ringkasan kanan (label di kolom E, nilai digabung G..akhir)
+  let sr = 3;
+  const sumRef = {};
+  const sumRow = (label, val, formula, style, key) => {
+    put(sr, 4, { t: 's', v: label, s: style === 14 ? 15 : 0 });
+    put(sr, mStart, { t: formula ? 'f' : 'n', v: val, f: formula, s: style });
+    for (let c = mStart + 1; c <= lastCol; c++) put(sr, c, { t: 'b', s: style });
+    merges.push(ref(sr, mStart) + ':' + ref(sr, lastCol));
+    sumRef[key] = ref(sr, mStart);
+    sr++;
   };
+  methods.forEach((k, i) => sumRow('Total ' + (k === 'QRIS' ? 'Qris' : k === 'CASH' ? 'Cash' : 'Transfer'), inBy[k],
+    list.length ? 'SUMIF(' + rng(4) + ',"DEBIT",' + rng(mStart + i) + ')' : null, 13, k));
+  if (inOther) sumRow('Total Lainnya', inOther, null, 13, 'OTHER');
+  sumRow('Total Pengeluaran', out,
+    list.length ? methods.map((k, i) => 'SUMIF(' + rng(5) + ',"KREDIT",' + rng(mStart + i) + ')').join('+') : null, 13, 'OUT');
+  const inKeys = [...methods, ...(inOther ? ['OTHER'] : [])];
+  sumRow('Total Saldo', inBy.CASH + inBy.QRIS + inBy.TRANSFER + inOther - out,
+    list.length ? inKeys.map(k => sumRef[k]).join('+') + '-' + sumRef.OUT : null, 14, 'SALDO');
+
+  // Header tabel (2 tingkat)
+  ['No', 'Tanggal', 'ID', 'Keterangan'].forEach((h, c) => {
+    put(hdr, c, { t: 's', v: h, s: 8 }); put(hdr + 1, c, { t: 'b', s: 8 });
+    merges.push(ref(hdr, c) + ':' + ref(hdr + 1, c));
+  });
+  put(hdr, 4, { t: 's', v: 'Kategori', s: 8 }); put(hdr, 5, { t: 'b', s: 8 }); merges.push(ref(hdr, 4) + ':' + ref(hdr, 5));
+  put(hdr, mStart, { t: 's', v: 'Metode/Nominal', s: 8 });
+  for (let c = mStart + 1; c <= lastCol; c++) put(hdr, c, { t: 'b', s: 8 });
+  merges.push(ref(hdr, mStart) + ':' + ref(hdr, lastCol));
+  put(hdr + 1, 4, { t: 's', v: 'DEBIT', s: 8 }); put(hdr + 1, 5, { t: 's', v: 'KREDIT', s: 8 });
+  methods.forEach((k, i) => put(hdr + 1, mStart + i, { t: 's', v: k, s: 8 }));
+
+  // Baris data
+  list.forEach((r, i) => {
+    const row = first + i, debit = isDebit(r), m = String(r.METODE_TRANSAKSI || '').toUpperCase();
+    const day = String(r.TANGGAL || '').slice(0, 10);
+    put(row, 0, { t: 'n', v: i + 1, s: 10 });
+    put(row, 1, /^\d{4}-\d{2}-\d{2}$/.test(day) ? { t: 'd', v: day, s: 11 } : { t: 's', v: String(r.TANGGAL || ''), s: 10 });
+    put(row, 2, { t: 's', v: String(r.EXPENSE_ID || ''), s: 9 });
+    put(row, 3, { t: 's', v: String(r.KETERANGAN || ''), s: 9 });
+    put(row, 4, debit ? { t: 's', v: 'DEBIT', s: 10 } : { t: 'b', s: 10 });
+    put(row, 5, debit ? { t: 'b', s: 10 } : { t: 's', v: 'KREDIT', s: 10 });
+    methods.forEach((k, j) => put(row, mStart + j, m === k ? { t: 'n', v: receiptParseMoney(r.NOMINAL), s: 12 } : { t: 'b', s: 12 }));
+  });
+
+  const ketW = Math.min(Math.max(...list.map(r => String(r.KETERANGAN || '').length), 14) + 2, 45);
+  const cols = [5, 12, 16, ketW, 10, 10, ...methods.map(() => 15)];
+  return { title: 'Laporan Harian', grid: { cols, cells, merges }, header: [], rows: [] };
 }
 
 /* ---------- CSV ---------- */
@@ -143,7 +210,30 @@ function xlCell(v, r, c, style) {
   const s = String(v ?? '');
   return s === '' ? `<c r="${ref}"/>` : `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xlEsc(s)}</t></is></c>`;
 }
+// Sheet berbentuk grid bebas (sel gabungan, border, rumus). Dipakai Laporan Harian.
+// cell spec: {t:'s'|'n'|'d'|'f'|'b', v, f, s}  (b = sel kosong bergaya)
+function xlGridXml(sheet) {
+  const g = sheet.grid, byRow = {};
+  g.cells.forEach(([r, c, sp]) => { (byRow[r] = byRow[r] || []).push([c, sp]); });
+  const one = (r, c, sp) => {
+    const a = xlCol(c) + r, st = ' s="' + (sp.s || 0) + '"';
+    if (sp.t === 's') return `<c r="${a}"${st} t="inlineStr"><is><t xml:space="preserve">${xlEsc(sp.v)}</t></is></c>`;
+    if (sp.t === 'n') return `<c r="${a}"${st}><v>${Number(sp.v) || 0}</v></c>`;
+    if (sp.t === 'd') { const n = xlDateSerial(sp.v); return n === null ? `<c r="${a}"${st}/>` : `<c r="${a}"${st}><v>${n}</v></c>`; }
+    if (sp.t === 'f') return sp.f ? `<c r="${a}"${st}><f>${xlEsc(sp.f)}</f><v>${Number(sp.v) || 0}</v></c>` : `<c r="${a}"${st}><v>${Number(sp.v) || 0}</v></c>`;
+    return `<c r="${a}"${st}/>`;
+  };
+  let xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews><cols>'
+    + g.cols.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols><sheetData>';
+  Object.keys(byRow).map(Number).sort((a, b) => a - b).forEach(r => {
+    xml += `<row r="${r}">` + byRow[r].sort((a, b) => a[0] - b[0]).map(([c, sp]) => one(r, c, sp)).join('') + '</row>';
+  });
+  xml += '</sheetData>' + (g.merges.length ? `<mergeCells count="${g.merges.length}">` + g.merges.map(m => `<mergeCell ref="${m}"/>`).join('') + '</mergeCells>' : '')
+    + '<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="0"/></worksheet>';
+  return xml;
+}
 function xlSheetXml(sheet) {
+  if (sheet.grid) return xlGridXml(sheet);
   const n = sheet.header.length, rows = sheet.rows;
   const widths = sheet.header.map((h, c) => {
     let w = String(h).length;
@@ -170,7 +260,7 @@ function buildXlsx(sheets) {
     { name: '_rels/.rels', data: X + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
     { name: 'xl/workbook.xml', data: X + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + sheets.map((s, i) => `<sheet name="${xlEsc(s.title)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') + '</sheets></workbook>' },
     { name: 'xl/_rels/workbook.xml.rels', data: X + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('') + `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` },
-    { name: 'xl/styles.xml', data: X + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/><numFmt numFmtId="165" formatCode="#,##0"/></numFmts><fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0F5A47"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"><alignment horizontal="left"/></xf><xf numFmtId="165" fontId="2" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>' },
+    { name: 'xl/styles.xml', data: X + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="3"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/><numFmt numFmtId="165" formatCode="#,##0"/><numFmt numFmtId="166" formatCode="&quot;Rp &quot;#,##0;-&quot;Rp &quot;#,##0"/></numFmts><fonts count="4"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="14"/><name val="Calibri"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0F5A47"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF1F1F1"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color auto="1"/></left><right style="thin"><color auto="1"/></right><top style="thin"><color auto="1"/></top><bottom style="thin"><color auto="1"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="16"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"><alignment horizontal="left"/></xf><xf numFmtId="165" fontId="2" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="166" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right"/></xf><xf numFmtId="166" fontId="2" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyAlignment="1"><alignment horizontal="right"/></xf><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>' },
     ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: xlSheetXml(s) }))
   ];
   return xlZip(files);
@@ -203,7 +293,7 @@ function exportExpenses(format) {
   if (!data.sheets[0].rows.length) { toast('Tidak ada expense untuk diekspor. Cek filter.', false); return; }
   try {
     if (format === 'csv') exportDownload(new Blob([buildCsv(data.sheets[0])], { type: 'text/csv;charset=utf-8' }), data.name + '.csv');
-    else exportDownload(buildXlsx(data.sheets), data.name + '.xlsx');
+    else exportDownload(buildXlsx([data.report, ...data.sheets]), data.name + '.xlsx');
     toast(data.sheets[0].rows.length + ' transaksi diekspor ke ' + (format === 'csv' ? 'CSV' : 'Excel'));
   } catch (e) { toast('Ekspor gagal: ' + e.message, false); }
 }
