@@ -120,26 +120,104 @@ function renderOrdersPrint(note){
     note
   );
 }
+// Laporan harian keuangan (PDF/cetak) dari daftar expense yang sedang terfilter.
+// Debit = pemasukan (per metode), Kredit = pengeluaran. Semua angka dihitung dari data; tidak ada input baru.
+function expenseReportAmount(v){
+  return typeof receiptParseMoney==='function'?receiptParseMoney(v):(Number(String(v??'').replace(/[^0-9.-]/g,''))||0);
+}
+function expenseReportDay(v){
+  const raw=String(v??'').trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(raw))return raw.slice(0,10);
+  const d=new Date(raw);
+  return isNaN(d.getTime())?'':d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function expenseReportDate(day){return day?day.slice(8,10)+'/'+day.slice(5,7)+'/'+day.slice(0,4):'-'}
+
+function openExpenseReport(html,title){
+  const w=window.open('','_blank','width=1000,height=800');
+  if(!w){ toast('Popup diblokir browser. Izinkan popup untuk Fortuna.',false); return; }
+  w.document.open();
+  w.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>${printEscape(title)}</title>
+<style>
+@page{size:A4;margin:10mm}
+*{box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;color:#000;margin:0;font-size:10px;line-height:1.2}
+h1{font-size:14px;text-align:center;margin:0 0 10px;font-weight:800}
+.top{display:flex;justify-content:space-between;gap:16px;margin-bottom:10px}
+.info,.sum{border-collapse:collapse}
+.info td{padding:1px 4px}
+.sum td{padding:1px 6px}
+.sum td.v{text-align:right;white-space:nowrap;min-width:90px}
+.sum tr.t td{font-weight:800;border-top:1px solid #000}
+table.rep{width:100%;border-collapse:collapse}
+table.rep th,table.rep td{border:1px solid #000;padding:2px 4px;vertical-align:middle}
+table.rep th{background:#f1f1f1;text-align:center;font-weight:700}
+table.rep thead{display:table-header-group}
+table.rep tr{page-break-inside:avoid}
+td.c{text-align:center}td.a{text-align:right;white-space:nowrap}
+.note{margin-top:10px;border:1px solid #000;padding:4px 6px}
+.foot{margin-top:8px;color:#666;font-size:9px}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body>${html}</body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(()=>{w.print();},250);
+}
+
 function printExpenses(){
-  const q=String($('expenseSearch')?.value||'').trim().toLowerCase();
-  const method=$('expenseMethodFilter')?.value||'ALL';
   const list=getFilteredExpenses();
-  const dateRange=typeof expenseDateRangeLabel==='function'?expenseDateRangeLabel():'Semua tanggal';
+  const R=n=>rupiah(n);
+  const E=printEscape;
+  const hasTransfer=list.some(x=>String(x.METODE_TRANSAKSI||'').toUpperCase()==='TRANSFER');
+  const methods=hasTransfer?['CASH','QRIS','TRANSFER']:['CASH','QRIS'];
+  const isDebit=x=>String(x.KATEGORI||'').toUpperCase()==='DEBIT';   // selain DEBIT dihitung KREDIT (pilihan form hanya DEBIT/KREDIT)
 
-  const rows=list.map(x=>`<tr>
-    <td>${printEscape(expenseDateLabel(x.TANGGAL))}</td>
-    <td>${printEscape(x.EXPENSE_ID||'-')}</td>
-    <td>${printEscape(x.KETERANGAN||'-')}</td>
-    <td>${printEscape(String(x.KATEGORI||'LAINNYA').toUpperCase())}</td>
-    <td>${printEscape(x.METODE_TRANSAKSI||'-')}</td>
-    <td class="amount">${printMoney(x.NOMINAL)}</td>
-  </tr>`).join('')||'<tr><td colspan="6" style="text-align:center">Tidak ada expense yang cocok.</td></tr>';
+  const inByMethod={CASH:0,QRIS:0,TRANSFER:0};
+  let inOther=0,out=0;
+  list.forEach(x=>{
+    const n=expenseReportAmount(x.NOMINAL);
+    if(isDebit(x)){
+      const m=String(x.METODE_TRANSAKSI||'').toUpperCase();
+      if(m in inByMethod)inByMethod[m]+=n;else inOther+=n;
+    }else out+=n;
+  });
+  const totalIn=inByMethod.CASH+inByMethod.QRIS+inByMethod.TRANSFER+inOther;
+  const saldo=totalIn-out;
 
-  const total=list.reduce((s,x)=>s+(Number(String(x.NOMINAL||'').replace(/[^0-9.-]/g,''))||0),0);
-  openPrintDocument(
-    'Laporan Finance — Fortuna Laundry',
-    `${list.length} transaksi • Metode: ${method==='ALL'?'Semua':method} • ${dateRange}${q?' • Pencarian: '+q:''} • Urut tanggal: ${expenseSortLabel()}`,
-    `<table><thead><tr><th>Tanggal</th><th>ID</th><th>Keterangan</th><th>Kategori</th><th>Metode</th><th class="amount">Nominal</th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="total">Total nominal: ${printMoney(total)}</div>`
-  );
+  // Tahun / bulan / tanggal dari data yang dicetak (satu hari -> "10"; beberapa hari -> "10 - 12")
+  const days=[...new Set(list.map(x=>expenseReportDay(x.TANGGAL)).filter(Boolean))].sort();
+  const MONTHS=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const uniq=a=>[...new Set(a)];
+  const years=uniq(days.map(d=>d.slice(0,4)));
+  const months=uniq(days.map(d=>MONTHS[+d.slice(5,7)-1]));
+  const dayNums=days.length>1?days[0].slice(8,10)+' - '+days[days.length-1].slice(8,10):(days[0]||'-').slice(8,10)||'-';
+  const info=[['Tahun',years.join(' - ')||'-'],['Bulan',months.join(' - ')||'-'],['Tanggal',dayNums]];
+
+  const sumRows=[['Total Cash',inByMethod.CASH],['Total Qris',inByMethod.QRIS]];
+  if(hasTransfer)sumRows.push(['Total Transfer',inByMethod.TRANSFER]);
+  if(inOther)sumRows.push(['Total Lainnya',inOther]);
+  sumRows.push(['Total Pengeluaran',out]);
+
+  const mCols=methods.length;
+  const rows=list.map((x,i)=>{
+    const n=expenseReportAmount(x.NOMINAL);
+    const debit=isDebit(x);
+    const m=String(x.METODE_TRANSAKSI||'').toUpperCase();
+    const cells=methods.map(k=>`<td class="a">${m===k?R(n):''}</td>`).join('');
+    return `<tr><td class="c">${i+1}</td><td class="c">${expenseReportDate(expenseReportDay(x.TANGGAL))}</td><td>${E(x.EXPENSE_ID||'-')}</td><td>${E(x.KETERANGAN||'-')}</td>
+      <td class="c">${debit?'DEBIT':''}</td><td class="c">${debit?'':'KREDIT'}</td>${cells}</tr>`;
+  }).join('')||`<tr><td colspan="${6+mCols}" class="c">Tidak ada expense yang cocok.</td></tr>`;
+
+  const html=`<h1>Laporan Harian Keuangan Fortuna Laundry</h1>
+  <div class="top">
+    <table class="info">${info.map(r=>`<tr><td>${r[0]}</td><td>:</td><td>${E(r[1])}</td></tr>`).join('')}</table>
+    <table class="sum">${sumRows.map(r=>`<tr><td>${r[0]}</td><td>:</td><td class="v">${R(r[1])}</td></tr>`).join('')}
+      <tr class="t"><td>Total Saldo</td><td>:</td><td class="v">${R(saldo)}</td></tr></table>
+  </div>
+  <table class="rep"><thead>
+    <tr><th rowspan="2">No</th><th rowspan="2">Tanggal</th><th rowspan="2">ID</th><th rowspan="2">Keterangan</th><th colspan="2">Kategori</th><th colspan="${mCols}">Metode/Nominal</th></tr>
+    <tr><th>DEBIT</th><th>KREDIT</th>${methods.map(k=>`<th>${k==='QRIS'?'QRIS':k}</th>`).join('')}</tr>
+  </thead><tbody>${rows}</tbody></table>
+  <div class="foot">Dicetak dari Fortuna Laundry Dashboard • ${new Date().toLocaleString('id-ID')}</div>`;
+  openExpenseReport(html,'Laporan Harian Keuangan — Fortuna Laundry');
 }
