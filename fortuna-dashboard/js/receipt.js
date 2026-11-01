@@ -50,7 +50,7 @@ function receiptPaperHTML(m) {
   const hasLogo = typeof FORTUNA_LOGO_PNG !== 'undefined' && FORTUNA_LOGO_PNG;
   const logo = hasLogo && !m.slim ? '<img src="' + FORTUNA_LOGO_PNG + '" alt="Fortuna Laundry">' : '';
   return `<div class="receipt">
-    <div style="text-align:center">${logo}<div class="receipt-brand">${esc(m.store.name)}</div>${m.store.address.map(a => `<div class="receipt-sub">${esc(a)}</div>`).join('')}<div class="receipt-sub">${esc(m.store.phone)}</div></div>
+    <div style="text-align:center">${logo}<div class="receipt-brand">${esc(m.store.name)}</div>${m.store.address.map(a => `<div class="receipt-sub">${esc(a)}</div>`).join('')}${m.slim ? '' : `<div class="receipt-sub">${esc(m.store.phone)}</div>`}</div>
     <div class="row" style="margin-top:6px"><span>${esc(m.dateText)}</span><b>${esc(m.orderNo)}</b></div>
     ${m.instansi ? `<div style="font-weight:800;margin-top:2px">${esc(m.instansi)}</div>` : ''}
     <div style="font-weight:800;margin-top:2px">${esc(m.name)}</div>
