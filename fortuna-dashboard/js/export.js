@@ -53,9 +53,32 @@ function buildExpenseExport() {
     const day = String(r.TANGGAL || '').slice(0, 10);
     return [idx + 1, /^\d{4}-\d{2}-\d{2}$/.test(day) ? { d: day } : String(r.TANGGAL || ''), String(r.EXPENSE_ID || ''), r.KETERANGAN || '', String(r.KATEGORI || 'LAINNYA').toUpperCase(), r.METODE_TRANSAKSI || '', { m: receiptParseMoney(r.NOMINAL) }];
   });
+  // Ringkasan (sheet 2) -- aturan sama dengan Laporan Harian di Cetak / PDF:
+  // DEBIT = pemasukan per metode, selain DEBIT = KREDIT (pengeluaran).
+  const inBy = { CASH: 0, QRIS: 0, TRANSFER: 0 };
+  let inOther = 0, out = 0;
+  list.forEach(r => {
+    const n = receiptParseMoney(r.NOMINAL);
+    if (String(r.KATEGORI || '').toUpperCase() === 'DEBIT') {
+      const m = String(r.METODE_TRANSAKSI || '').toUpperCase();
+      if (m in inBy) inBy[m] += n; else inOther += n;
+    } else out += n;
+  });
+  const days = [...new Set(list.map(r => String(r.TANGGAL || '').slice(0, 10)).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort();
+  const fmtDay = d => d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4);
+  const periode = !days.length ? '-' : days.length === 1 ? fmtDay(days[0]) : fmtDay(days[0]) + ' - ' + fmtDay(days[days.length - 1]);
+  const hasTransfer = list.some(r => String(r.METODE_TRANSAKSI || '').toUpperCase() === 'TRANSFER');
+  const sumRows = [['Periode', periode], ['Total Cash', { m: inBy.CASH }], ['Total Qris', { m: inBy.QRIS }]];
+  if (hasTransfer) sumRows.push(['Total Transfer', { m: inBy.TRANSFER }]);
+  if (inOther) sumRows.push(['Total Lainnya', { m: inOther }]);
+  sumRows.push(['Total Pengeluaran', { m: out }]);
+  sumRows.push(['Total Saldo', { m: inBy.CASH + inBy.QRIS + inBy.TRANSFER + inOther - out }]);
   return {
     name: 'log-finance-' + (method !== 'ALL' ? method.toLowerCase() + '-' : '') + (dateFrom || dateTo ? (dateFrom || 'awal') + '-sd-' + (dateTo || 'sekarang') + '-' : '') + exportToday(),
-    sheets: [{ title: 'Log Finance', header: ['No', 'Tanggal', 'ID', 'Keterangan', 'Kategori', 'Metode', 'Nominal'], rows, totalCol: 6 }]
+    sheets: [
+      { title: 'Log Finance', header: ['No', 'Tanggal', 'ID', 'Keterangan', 'Kategori', 'Metode', 'Nominal'], rows, totalCol: 6 },
+      { title: 'Ringkasan', header: ['Keterangan', 'Nilai'], rows: sumRows }
+    ]
   };
 }
 
