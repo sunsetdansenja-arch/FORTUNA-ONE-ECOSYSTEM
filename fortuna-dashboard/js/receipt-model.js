@@ -265,7 +265,7 @@ function buildReceiptLines(m) {
   }
   center(m.store.name, true);
   m.store.address.forEach(function (a) { center(a); });
-  center(m.store.phone);
+  if (!m.slim) center(m.store.phone);
   blank();
 
   lr(m.dateText, m.orderNo);
