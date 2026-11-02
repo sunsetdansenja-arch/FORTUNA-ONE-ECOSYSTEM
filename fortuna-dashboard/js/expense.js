@@ -25,7 +25,27 @@ function resetExpenseDateFilter(){
   if($('expenseDateTo'))$('expenseDateTo').value='';
   renderExpense();
 }
-function expenseTime(x){const v=String(x.TANGGAL||'').trim();return v?Date.parse(v.length<=10?v+'T00:00:00':v):NaN}
+// Parse timestamp expense dengan aturan yang sama seperti struk:
+// timestamp tanpa offset dianggap UTC, sedangkan filter tanggal mengikuti hari WIB.
+function expenseTime(x){
+  const raw=String(x?.TANGGAL||'').trim();
+  if(!raw)return NaN;
+  let iso=raw.includes('T')?raw:raw.replace(' ','T');
+  iso=iso.replace(/T(\\d):/,'T0$1:');
+  if(/^\\d{4}-\\d{2}-\\d{2}$/.test(iso))iso+='T00:00:00';
+  const hasOffset=/(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(iso);
+  const parsed=new Date(hasOffset?iso:iso+'Z');
+  return Number.isNaN(parsed.getTime())?NaN:parsed.getTime();
+}
+function expenseDayWIB(timestamp){
+  if(!Number.isFinite(timestamp))return '';
+  const parts=new Intl.DateTimeFormat('en-CA',{
+    timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'
+  }).formatToParts(new Date(timestamp));
+  const get=type=>(parts.find(p=>p.type===type)||{}).value||'';
+  const year=get('year'),month=get('month'),day=get('day');
+  return year&&month&&day?year+'-'+month+'-'+day:'';
+}
 function getFilteredExpenses(){
   const q=String($('expenseSearch')?.value||'').trim().toLowerCase();
   const method=$('expenseMethodFilter')?.value||'ALL';
@@ -33,7 +53,8 @@ function getFilteredExpenses(){
   const dir=expenseSortDir()==='ASC'?1:-1;
   const list=(expenses||[]).filter(x=>{
     const hay=String(x.KETERANGAN||'')+' '+String(x.EXPENSE_ID||'');
-    const day=String(x.TANGGAL||'').trim().slice(0,10);
+    const timestamp=expenseTime(x);
+    const day=expenseDayWIB(timestamp);
     const matchesDate=(!dateFrom||(day&&day>=dateFrom))&&(!dateTo||(day&&day<=dateTo));
     return matchesDate&&(!q||hay.toLowerCase().includes(q))&&(method==='ALL'||String(x.METODE_TRANSAKSI||'')===method);
   });
