@@ -31,9 +31,9 @@ function expenseTime(x){
   const raw=String(x?.TANGGAL||'').trim();
   if(!raw)return NaN;
   let iso=raw.includes('T')?raw:raw.replace(' ','T');
-  iso=iso.replace(/T(\\d):/,'T0$1:');
-  if(/^\\d{4}-\\d{2}-\\d{2}$/.test(iso))iso+='T00:00:00';
-  const hasOffset=/(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(iso);
+  iso=iso.replace(/T(\d):/,'T0$1:');
+  if(/^\d{4}-\d{2}-\d{2}$/.test(iso))iso+='T00:00:00';
+  const hasOffset=/(?:Z|[+-]\d{2}:?\d{2})$/i.test(iso);
   const parsed=new Date(hasOffset?iso:iso+'Z');
   return Number.isNaN(parsed.getTime())?NaN:parsed.getTime();
 }
